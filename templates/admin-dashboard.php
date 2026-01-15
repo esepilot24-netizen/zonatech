@@ -1976,6 +1976,7 @@ $current_user = wp_get_current_user();
                 
                 <li><a href="#" onclick="openModal('addQuestionModal'); return false;"><i class="fas fa-plus-circle"></i> Add Questions</a></li>
                 <li><a href="#" onclick="openModal('manageCardsModal'); return false;"><i class="fas fa-ticket-alt"></i> Manage Cards</a></li>
+                <li><a href="#" onclick="openModal('pricingModal'); return false;"><i class="fas fa-money-bill-wave"></i> Pricing</a></li>
                 <li><a href="#" onclick="openModal('settingsModal'); return false;"><i class="fas fa-cog"></i> Settings</a></li>
                 
                 <div class="nav-divider"></div>
@@ -3510,6 +3511,141 @@ $current_user = wp_get_current_user();
         </div>
     </div>
     
+    <!-- Pricing Management Modal -->
+    <div class="admin-modal" id="pricingModal">
+        <div class="admin-modal-content" style="max-width: 800px;">
+            <div class="admin-modal-header">
+                <h2><i class="fas fa-money-bill-wave"></i> Pricing Management</h2>
+                <button class="admin-modal-close" onclick="closeModal('pricingModal')">&times;</button>
+            </div>
+            
+            <div style="padding: 12px 15px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; margin-bottom: 20px;">
+                <p style="font-size: 13px; color: rgba(255,255,255,0.8); margin: 0;">
+                    <i class="fas fa-info-circle" style="color: #3b82f6;"></i> 
+                    All prices are in Nigerian Naira (₦). Changes take effect immediately.
+                </p>
+            </div>
+            
+            <div id="pricing-form-container">
+                <!-- Past Questions & Subscriptions Section -->
+                <div style="margin-bottom: 25px; padding: 20px; background: rgba(139, 92, 246, 0.05); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 12px;">
+                    <h3 style="font-size: 16px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-book" style="color: #8b5cf6;"></i> Past Questions & Subscriptions
+                    </h3>
+                    
+                    <div class="admin-form-row">
+                        <div class="admin-form-group">
+                            <label><i class="fas fa-tag"></i> Single Subject Price (₦)</label>
+                            <input type="number" id="pricing_subject_price" min="0" step="100" placeholder="e.g., 5000">
+                            <small style="color: rgba(255,255,255,0.5);">Price per subject access</small>
+                        </div>
+                        <div class="admin-form-group">
+                            <label><i class="fas fa-calendar"></i> Monthly Subscription (₦)</label>
+                            <input type="number" id="pricing_monthly_price" min="0" step="100" placeholder="e.g., 3000">
+                            <small style="color: rgba(255,255,255,0.5);">Monthly access to all subjects</small>
+                        </div>
+                    </div>
+                    
+                    <div class="admin-form-row">
+                        <div class="admin-form-group">
+                            <label><i class="fas fa-calendar-alt"></i> 6-Month Subscription (₦)</label>
+                            <input type="number" id="pricing_6month_price" min="0" step="100" placeholder="e.g., 15000">
+                            <small style="color: rgba(255,255,255,0.5);">6-month access to all subjects</small>
+                        </div>
+                        <div class="admin-form-group">
+                            <label><i class="fas fa-gift"></i> Free Questions Limit</label>
+                            <input type="number" id="pricing_free_questions_limit" min="0" step="1" placeholder="e.g., 10">
+                            <small style="color: rgba(255,255,255,0.5);">Number of free questions before payment</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Scratch Cards Section -->
+                <div style="margin-bottom: 25px; padding: 20px; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 12px;">
+                    <h3 style="font-size: 16px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-ticket-alt" style="color: #10b981;"></i> Scratch Cards
+                    </h3>
+                    
+                    <div class="admin-form-row">
+                        <div class="admin-form-group">
+                            <label><i class="fas fa-graduation-cap"></i> WAEC Card Price (₦)</label>
+                            <input type="number" id="pricing_waec_card_price" min="0" step="50" placeholder="e.g., 3850">
+                            <small style="color: rgba(255,255,255,0.5);">WAEC result checker card</small>
+                        </div>
+                        <div class="admin-form-group">
+                            <label><i class="fas fa-graduation-cap"></i> NECO Card Price (₦)</label>
+                            <input type="number" id="pricing_neco_card_price" min="0" step="50" placeholder="e.g., 2550">
+                            <small style="color: rgba(255,255,255,0.5);">NECO result checker card</small>
+                        </div>
+                    </div>
+                    
+                    <div class="admin-form-row">
+                        <div class="admin-form-group">
+                            <label><i class="fas fa-graduation-cap"></i> JAMB Card Price (₦)</label>
+                            <input type="number" id="pricing_jamb_card_price" min="0" step="50" placeholder="e.g., 5000">
+                            <small style="color: rgba(255,255,255,0.5);">JAMB profile/result card</small>
+                        </div>
+                        <div class="admin-form-group">
+                            <label><i class="fas fa-credit-card"></i> Default Card Price (₦)</label>
+                            <input type="number" id="pricing_scratch_card_price" min="0" step="50" placeholder="e.g., 3500">
+                            <small style="color: rgba(255,255,255,0.5);">Fallback for other card types</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- NIN Services Section -->
+                <div style="margin-bottom: 25px; padding: 20px; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 12px;">
+                    <h3 style="font-size: 16px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-id-card" style="color: #3b82f6;"></i> NIN Services
+                    </h3>
+                    
+                    <div class="admin-form-row">
+                        <div class="admin-form-group">
+                            <label><i class="fas fa-file-alt"></i> Premium NIN Slip (₦)</label>
+                            <input type="number" id="pricing_nin_slip_price" min="0" step="100" placeholder="e.g., 2000">
+                            <small style="color: rgba(255,255,255,0.5);">Premium slip with full details</small>
+                        </div>
+                        <div class="admin-form-group">
+                            <label><i class="fas fa-file"></i> Standard NIN Slip (₦)</label>
+                            <input type="number" id="pricing_nin_standard_slip_price" min="0" step="100" placeholder="e.g., 1000">
+                            <small style="color: rgba(255,255,255,0.5);">Standard slip with basic details</small>
+                        </div>
+                    </div>
+                    
+                    <div class="admin-form-row">
+                        <div class="admin-form-group">
+                            <label><i class="fas fa-download"></i> NIN Slip Download (₦)</label>
+                            <input type="number" id="pricing_nin_slip_download_price" min="0" step="100" placeholder="e.g., 500">
+                            <small style="color: rgba(255,255,255,0.5);">Direct NIN slip download</small>
+                        </div>
+                        <div class="admin-form-group">
+                            <label><i class="fas fa-edit"></i> NIN Modification (₦)</label>
+                            <input type="number" id="pricing_nin_modification_price" min="0" step="100" placeholder="e.g., 3000">
+                            <small style="color: rgba(255,255,255,0.5);">NIN data modification service</small>
+                        </div>
+                    </div>
+                    
+                    <div class="admin-form-group">
+                        <label><i class="fas fa-calendar-check"></i> DOB Correction (₦)</label>
+                        <input type="number" id="pricing_nin_dob_correction_price" min="0" step="100" placeholder="e.g., 5000">
+                        <small style="color: rgba(255,255,255,0.5);">Date of birth correction service</small>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" onclick="savePricing()" class="admin-form-submit" style="flex: 1; background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                        <i class="fas fa-save"></i> Save All Prices
+                    </button>
+                    <button type="button" onclick="loadPricing()" class="admin-form-submit" style="flex: 0.5; background: linear-gradient(135deg, #6b7280, #4b5563);">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+                
+                <div id="pricing-result" style="margin-top: 15px; display: none;"></div>
+            </div>
+        </div>
+    </div>
+    
     <!-- View/Edit Question Modal -->
     <div class="admin-modal" id="viewQuestionModal">
         <div class="admin-modal-content" style="max-width: 700px;">
@@ -4190,6 +4326,106 @@ $current_user = wp_get_current_user();
             resultDiv.innerHTML = '<div style="padding: 12px; background: ' + bgColor + '; border-radius: 8px; color: ' + textColor + ';">' + message + '</div>';
             resultDiv.style.display = 'block';
         }
+        
+        // Pricing Management Functions
+        function loadPricing() {
+            showPricingResult('<i class="fas fa-spinner fa-spin"></i> Loading prices...', 'info');
+            
+            jQuery.ajax({
+                url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                type: 'POST',
+                data: {
+                    action: 'zonatech_get_pricing',
+                    nonce: '<?php echo wp_create_nonce('zonatech_nonce'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        var data = response.data;
+                        document.getElementById('pricing_subject_price').value = data.subject_price || '';
+                        document.getElementById('pricing_monthly_price').value = data.monthly_price || '';
+                        document.getElementById('pricing_6month_price').value = data['6month_price'] || '';
+                        document.getElementById('pricing_free_questions_limit').value = data.free_questions_limit || '';
+                        document.getElementById('pricing_scratch_card_price').value = data.scratch_card_price || '';
+                        document.getElementById('pricing_waec_card_price').value = data.waec_card_price || '';
+                        document.getElementById('pricing_neco_card_price').value = data.neco_card_price || '';
+                        document.getElementById('pricing_jamb_card_price').value = data.jamb_card_price || '';
+                        document.getElementById('pricing_nin_slip_price').value = data.nin_slip_price || '';
+                        document.getElementById('pricing_nin_standard_slip_price').value = data.nin_standard_slip_price || '';
+                        document.getElementById('pricing_nin_slip_download_price').value = data.nin_slip_download_price || '';
+                        document.getElementById('pricing_nin_modification_price').value = data.nin_modification_price || '';
+                        document.getElementById('pricing_nin_dob_correction_price').value = data.nin_dob_correction_price || '';
+                        
+                        showPricingResult('<i class="fas fa-check-circle"></i> Prices loaded successfully!', 'success');
+                        setTimeout(function() {
+                            document.getElementById('pricing-result').style.display = 'none';
+                        }, 2000);
+                    } else {
+                        showPricingResult('<i class="fas fa-exclamation-circle"></i> ' + (response.data.message || 'Failed to load prices.'), 'error');
+                    }
+                },
+                error: function() {
+                    showPricingResult('<i class="fas fa-exclamation-circle"></i> Network error. Please try again.', 'error');
+                }
+            });
+        }
+        
+        function savePricing() {
+            showPricingResult('<i class="fas fa-spinner fa-spin"></i> Saving prices...', 'info');
+            
+            var pricingData = {
+                action: 'zonatech_save_pricing',
+                nonce: '<?php echo wp_create_nonce('zonatech_nonce'); ?>',
+                zonatech_subject_price: document.getElementById('pricing_subject_price').value,
+                zonatech_monthly_price: document.getElementById('pricing_monthly_price').value,
+                zonatech_6month_price: document.getElementById('pricing_6month_price').value,
+                zonatech_free_questions_limit: document.getElementById('pricing_free_questions_limit').value,
+                zonatech_scratch_card_price: document.getElementById('pricing_scratch_card_price').value,
+                zonatech_waec_card_price: document.getElementById('pricing_waec_card_price').value,
+                zonatech_neco_card_price: document.getElementById('pricing_neco_card_price').value,
+                zonatech_jamb_card_price: document.getElementById('pricing_jamb_card_price').value,
+                zonatech_nin_slip_price: document.getElementById('pricing_nin_slip_price').value,
+                zonatech_nin_standard_slip_price: document.getElementById('pricing_nin_standard_slip_price').value,
+                zonatech_nin_slip_download_price: document.getElementById('pricing_nin_slip_download_price').value,
+                zonatech_nin_modification_price: document.getElementById('pricing_nin_modification_price').value,
+                zonatech_nin_dob_correction_price: document.getElementById('pricing_nin_dob_correction_price').value
+            };
+            
+            jQuery.ajax({
+                url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                type: 'POST',
+                data: pricingData,
+                success: function(response) {
+                    if (response.success) {
+                        showPricingResult('<i class="fas fa-check-circle"></i> ' + response.data.message, 'success');
+                    } else {
+                        showPricingResult('<i class="fas fa-exclamation-circle"></i> ' + (response.data.message || 'Failed to save prices.'), 'error');
+                    }
+                },
+                error: function() {
+                    showPricingResult('<i class="fas fa-exclamation-circle"></i> Network error. Please try again.', 'error');
+                }
+            });
+        }
+        
+        function showPricingResult(message, type) {
+            var resultDiv = document.getElementById('pricing-result');
+            var bgColor = type === 'success' ? 'rgba(34, 197, 94, 0.2)' : 
+                         type === 'error' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(59, 130, 246, 0.2)';
+            var textColor = type === 'success' ? '#22c55e' : 
+                           type === 'error' ? '#ef4444' : '#3b82f6';
+            
+            resultDiv.innerHTML = '<div style="padding: 12px; background: ' + bgColor + '; border-radius: 8px; color: ' + textColor + ';">' + message + '</div>';
+            resultDiv.style.display = 'block';
+        }
+        
+        // Load pricing when modal opens
+        var originalOpenModal = openModal;
+        openModal = function(modalId) {
+            originalOpenModal(modalId);
+            if (modalId === 'pricingModal') {
+                loadPricing();
+            }
+        };
     </script>
 </body>
 </html>
