@@ -443,9 +443,10 @@ class ZonaTech_User_Auth {
                 return;
             }
             
-            // Check if table exists
-            $tables = $wpdb->get_col("SHOW TABLES");
-            $table_exists = in_array($table_name, $tables, true);
+            // Check if table exists (efficient single table check)
+            // Using LIKE with literal string is safe here since table_name is constructed from wpdb->prefix
+            $table_check = $wpdb->get_var("SHOW TABLES LIKE '" . esc_sql($table_name) . "'");
+            $table_exists = ($table_check === $table_name);
             
             if (!$table_exists) {
                 error_log('ZonaTech: Verification failed - pending_users table does not exist');
@@ -505,7 +506,7 @@ class ZonaTech_User_Auth {
             // Ensure username is unique
             $counter = 1;
             while (username_exists($username)) {
-                $username = $base_username . wp_rand(100, 9999);
+                $username = $base_username . wp_rand(100, 999);
                 $counter++;
                 if ($counter > 10) {
                     $username = $base_username . '_' . time();

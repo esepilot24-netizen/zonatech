@@ -46,7 +46,7 @@ $pending_email = isset($_GET['email']) ? sanitize_email(urldecode($_GET['email']
                     <label for="verification_code" class="text-white"><i class="fas fa-key"></i> Verification Code</label>
                     <div class="input-with-icon">
                         <i class="fas fa-key input-icon"></i>
-                        <input type="text" name="verification_code" id="verification_code" class="form-control form-control-icon" placeholder="Enter 6-digit code" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" required style="letter-spacing: 8px; text-align: center; font-size: 1.5rem; font-weight: bold;" autocomplete="one-time-code">
+                        <input type="text" name="verification_code" id="verification_code" class="form-control form-control-icon" placeholder="Enter 6-digit code" maxlength="6" pattern="\d{6}" inputmode="numeric" required style="letter-spacing: 8px; text-align: center; font-size: 1.5rem; font-weight: bold;" autocomplete="one-time-code">
                     </div>
                 </div>
                 
