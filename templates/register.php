@@ -236,9 +236,18 @@ jQuery(document).ready(function($) {
                 if (response && response.success) {
                     showNotification(response.data.message || 'Account created successfully!', 'success');
                     
+                    // Validate pending_user_id is numeric before using in URL
+                    var pendingId = parseInt(response.data.pending_user_id, 10);
+                    if (isNaN(pendingId) || pendingId <= 0) {
+                        console.error('Invalid pending_user_id received:', response.data.pending_user_id);
+                        showNotification('Registration successful but verification redirect failed. Please contact support.', 'error');
+                        $btn.prop('disabled', false).html(originalText);
+                        return;
+                    }
+                    
                     // Redirect to verification page
                     var verifyUrl = '<?php echo esc_url(site_url('/zonatech-verify-email/')); ?>';
-                    verifyUrl += '?pending_id=' + response.data.pending_user_id;
+                    verifyUrl += '?pending_id=' + pendingId;
                     verifyUrl += '&email=' + encodeURIComponent(formData.email);
                     
                     setTimeout(function() {
@@ -274,8 +283,8 @@ jQuery(document).ready(function($) {
                         if (resp.data && resp.data.message) {
                             errorMessage = resp.data.message;
                         }
-                    } catch(e) {
-                        // Could not parse response
+                    } catch(parseError) {
+                        console.warn('Could not parse error response:', parseError.message);
                     }
                 }
                 
