@@ -333,17 +333,23 @@ class ZonaTech_User_Auth {
         global $wpdb;
         $table_name = $wpdb->prefix . 'zonatech_pending_users';
         
-        // Create pending users table if not exists
-        $this->create_pending_users_table();
+        // Create pending users table if not exists and verify it was created
+        $table_ready = $this->create_pending_users_table();
+        
+        if (!$table_ready) {
+            error_log('ZonaTech: Registration failed - could not create or verify pending_users table');
+            wp_send_json_error(array('message' => 'System configuration error. Please contact support.'));
+            return;
+        }
         
         // Delete any existing pending registration for this email
-        $wpdb->delete($table_name, array('email' => $email));
+        $wpdb->delete($table_name, array('email' => $email), array('%s'));
         
         // Generate verification code
         $verification_code = $this->generate_verification_code();
         
-        // Store pending registration
-        $insert_result = $wpdb->insert($table_name, array(
+        // Prepare data for insert
+        $insert_data = array(
             'first_name' => $first_name,
             'last_name' => $last_name,
             'email' => $email,
@@ -352,18 +358,34 @@ class ZonaTech_User_Auth {
             'verification_code' => $verification_code,
             'expires_at' => date('Y-m-d H:i:s', strtotime('+30 minutes')),
             'created_at' => current_time('mysql')
-        ), array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'));
+        );
+        
+        // Store pending registration with explicit format types
+        $insert_result = $wpdb->insert(
+            $table_name, 
+            $insert_data, 
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
+        );
         
         if ($insert_result === false) {
             // Log the database error for debugging
-            error_log('ZonaTech Registration DB Error: ' . $wpdb->last_error);
-            wp_send_json_error(array('message' => 'Failed to create registration. Please try again later.'));
+            $db_error = $wpdb->last_error;
+            error_log('ZonaTech Registration DB Error: ' . $db_error);
+            error_log('ZonaTech Registration Data: ' . print_r($insert_data, true));
+            
+            // Check if it's a duplicate email error
+            if (strpos(strtolower($db_error), 'duplicate') !== false) {
+                wp_send_json_error(array('message' => 'An account with this email already exists. Please try logging in.'));
+            } else {
+                wp_send_json_error(array('message' => 'Failed to create registration. Database error occurred.'));
+            }
             return;
         }
         
         $pending_user_id = $wpdb->insert_id;
         
-        if (!$pending_user_id) {
+        if (!$pending_user_id || $pending_user_id <= 0) {
+            error_log('ZonaTech: Registration failed - insert_id was ' . var_export($pending_user_id, true));
             wp_send_json_error(array('message' => 'Failed to create registration. Please try again.'));
             return;
         }
@@ -372,17 +394,19 @@ class ZonaTech_User_Auth {
         $email_sent = $this->send_verification_email($email, $first_name, $verification_code);
         
         if (!$email_sent) {
-            $wpdb->delete($table_name, array('id' => $pending_user_id));
-            wp_send_json_error(array('message' => 'Failed to send verification email. Please try again.'));
+            // Clean up the pending registration if email fails
+            $wpdb->delete($table_name, array('id' => $pending_user_id), array('%d'));
+            error_log('ZonaTech: Failed to send verification email to ' . $email);
+            wp_send_json_error(array('message' => 'Failed to send verification email. Please check your email address and try again.'));
             return;
         }
         
         // Build the redirect URL to the verification page
-        $redirect_url = home_url('/zonatech-verify-email/') . '?pending_id=' . $pending_user_id . '&email=' . urlencode($email);
+        $redirect_url = home_url('/zonatech-verify-email/') . '?pending_id=' . intval($pending_user_id) . '&email=' . urlencode($email);
         
         wp_send_json_success(array(
             'message' => 'Verification code sent to your email!',
-            'pending_user_id' => $pending_user_id,
+            'pending_user_id' => intval($pending_user_id),
             'redirect' => $redirect_url
         ));
     }
@@ -585,31 +609,36 @@ class ZonaTech_User_Auth {
         $table_name = $wpdb->prefix . 'zonatech_pending_users';
         
         // Check if table already exists
-        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") === $table_name;
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name)) === $table_name;
         
         if (!$table_exists) {
             $charset_collate = $wpdb->get_charset_collate();
             
-            $sql = "CREATE TABLE $table_name (
-                id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-                first_name varchar(100) NOT NULL,
-                last_name varchar(100) NOT NULL,
-                email varchar(100) NOT NULL,
-                phone varchar(20) DEFAULT '',
-                password varchar(255) NOT NULL,
-                verification_code varchar(6) NOT NULL,
-                expires_at datetime NOT NULL,
-                created_at datetime NOT NULL,
-                PRIMARY KEY (id),
-                UNIQUE KEY email (email)
+            // Use direct SQL for table creation - more reliable than dbDelta
+            $sql = "CREATE TABLE IF NOT EXISTS `$table_name` (
+                `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                `first_name` varchar(100) NOT NULL,
+                `last_name` varchar(100) NOT NULL,
+                `email` varchar(100) NOT NULL,
+                `phone` varchar(20) DEFAULT '',
+                `password` varchar(255) NOT NULL,
+                `verification_code` varchar(6) NOT NULL,
+                `expires_at` datetime NOT NULL,
+                `created_at` datetime NOT NULL,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `email` (`email`)
             ) $charset_collate;";
             
-            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-            dbDelta($sql);
+            $result = $wpdb->query($sql);
             
-            // Log table creation for debugging
-            error_log('ZonaTech: Created pending_users table');
+            if ($result === false) {
+                error_log('ZonaTech: Failed to create pending_users table - ' . $wpdb->last_error);
+            } else {
+                error_log('ZonaTech: Successfully created pending_users table');
+            }
         }
+        
+        return $table_exists || ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name)) === $table_name);
     }
     
     public function handle_login() {
