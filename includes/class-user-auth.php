@@ -606,16 +606,22 @@ class ZonaTech_User_Auth {
      */
     private function create_pending_users_table() {
         global $wpdb;
+        
+        // Build table name safely - $wpdb->prefix is already sanitized by WordPress
         $table_name = $wpdb->prefix . 'zonatech_pending_users';
         
-        // Check if table already exists
-        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name)) === $table_name;
+        // Check if table already exists using WordPress's method
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+        $tables = $wpdb->get_col("SHOW TABLES");
+        $table_exists = in_array($table_name, $tables, true);
         
         if (!$table_exists) {
             $charset_collate = $wpdb->get_charset_collate();
             
             // Use direct SQL for table creation - more reliable than dbDelta
-            $sql = "CREATE TABLE IF NOT EXISTS `$table_name` (
+            // Table name is constructed from $wpdb->prefix which is controlled by WordPress
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange
+            $sql = "CREATE TABLE IF NOT EXISTS `" . esc_sql($table_name) . "` (
                 `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 `first_name` varchar(100) NOT NULL,
                 `last_name` varchar(100) NOT NULL,
@@ -629,16 +635,19 @@ class ZonaTech_User_Auth {
                 UNIQUE KEY `email` (`email`)
             ) $charset_collate;";
             
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
             $result = $wpdb->query($sql);
             
             if ($result === false) {
                 error_log('ZonaTech: Failed to create pending_users table - ' . $wpdb->last_error);
+                return false;
             } else {
                 error_log('ZonaTech: Successfully created pending_users table');
+                return true;
             }
         }
         
-        return $table_exists || ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name)) === $table_name);
+        return $table_exists;
     }
     
     public function handle_login() {

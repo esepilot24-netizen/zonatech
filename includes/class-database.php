@@ -16,7 +16,8 @@ class ZonaTech_Database {
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         
         // Pending Users Table (for email verification)
-        $table_pending = $wpdb->prefix . 'zonatech_pending_users';
+        // Using direct SQL for more reliable table creation
+        $table_pending = esc_sql($wpdb->prefix . 'zonatech_pending_users');
         $sql_pending = "CREATE TABLE IF NOT EXISTS `$table_pending` (
             `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             `first_name` varchar(100) NOT NULL,
@@ -30,6 +31,7 @@ class ZonaTech_Database {
             PRIMARY KEY (`id`),
             UNIQUE KEY `email` (`email`)
         ) $charset_collate;";
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $wpdb->query($sql_pending);
         
         // Past Questions Table
