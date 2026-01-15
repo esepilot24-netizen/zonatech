@@ -23,6 +23,10 @@ class ZonaTech_Admin {
         add_action('admin_init', array($this, 'register_settings'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         add_action('admin_notices', array($this, 'show_setup_notice'));
+        
+        // AJAX handlers for admin actions
+        add_action('wp_ajax_zonatech_save_pricing', array($this, 'handle_save_pricing'));
+        add_action('wp_ajax_zonatech_get_pricing', array($this, 'handle_get_pricing'));
     }
     
     public function show_setup_notice() {
@@ -109,6 +113,15 @@ class ZonaTech_Admin {
         
         add_submenu_page(
             'zonatech-ng',
+            'Pricing',
+            'Pricing',
+            'manage_options',
+            'zonatech-pricing',
+            array($this, 'render_pricing')
+        );
+        
+        add_submenu_page(
+            'zonatech-ng',
             'Settings',
             'Settings',
             'manage_options',
@@ -118,8 +131,32 @@ class ZonaTech_Admin {
     }
     
     public function register_settings() {
+        // Paystack settings
         register_setting('zonatech_settings', 'zonatech_paystack_public_key');
         register_setting('zonatech_settings', 'zonatech_paystack_secret_key');
+        
+        // Support settings
+        register_setting('zonatech_settings', 'zonatech_whatsapp_number');
+        register_setting('zonatech_settings', 'zonatech_support_email');
+        
+        // Pricing settings - Exam types
+        register_setting('zonatech_pricing', 'zonatech_subject_price');
+        register_setting('zonatech_pricing', 'zonatech_monthly_price');
+        register_setting('zonatech_pricing', 'zonatech_6month_price');
+        register_setting('zonatech_pricing', 'zonatech_free_questions_limit');
+        
+        // Pricing settings - Scratch Cards
+        register_setting('zonatech_pricing', 'zonatech_scratch_card_price');
+        register_setting('zonatech_pricing', 'zonatech_waec_card_price');
+        register_setting('zonatech_pricing', 'zonatech_neco_card_price');
+        register_setting('zonatech_pricing', 'zonatech_jamb_card_price');
+        
+        // Pricing settings - NIN Services
+        register_setting('zonatech_pricing', 'zonatech_nin_slip_price');
+        register_setting('zonatech_pricing', 'zonatech_nin_standard_slip_price');
+        register_setting('zonatech_pricing', 'zonatech_nin_slip_download_price');
+        register_setting('zonatech_pricing', 'zonatech_nin_modification_price');
+        register_setting('zonatech_pricing', 'zonatech_nin_dob_correction_price');
     }
     
     public function enqueue_admin_scripts($hook) {
@@ -134,6 +171,84 @@ class ZonaTech_Admin {
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('zonatech_nonce')
         ));
+    }
+    
+    /**
+     * Get price from options with fallback to constant
+     */
+    public static function get_price($option_name, $constant_name) {
+        $price = get_option($option_name);
+        if ($price === false || $price === '') {
+            return defined($constant_name) ? constant($constant_name) : 0;
+        }
+        return intval($price);
+    }
+    
+    /**
+     * Handle AJAX save pricing
+     */
+    public function handle_save_pricing() {
+        check_ajax_referer('zonatech_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized.'));
+            return;
+        }
+        
+        $pricing_fields = array(
+            'zonatech_subject_price',
+            'zonatech_monthly_price',
+            'zonatech_6month_price',
+            'zonatech_free_questions_limit',
+            'zonatech_scratch_card_price',
+            'zonatech_waec_card_price',
+            'zonatech_neco_card_price',
+            'zonatech_jamb_card_price',
+            'zonatech_nin_slip_price',
+            'zonatech_nin_standard_slip_price',
+            'zonatech_nin_slip_download_price',
+            'zonatech_nin_modification_price',
+            'zonatech_nin_dob_correction_price'
+        );
+        
+        foreach ($pricing_fields as $field) {
+            if (isset($_POST[$field])) {
+                $value = intval($_POST[$field]);
+                update_option($field, $value);
+            }
+        }
+        
+        wp_send_json_success(array('message' => 'Pricing updated successfully!'));
+    }
+    
+    /**
+     * Handle AJAX get pricing
+     */
+    public function handle_get_pricing() {
+        check_ajax_referer('zonatech_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized.'));
+            return;
+        }
+        
+        $pricing = array(
+            'subject_price' => self::get_price('zonatech_subject_price', 'ZONATECH_SUBJECT_PRICE'),
+            'monthly_price' => self::get_price('zonatech_monthly_price', 'ZONATECH_MONTHLY_PRICE'),
+            '6month_price' => self::get_price('zonatech_6month_price', 'ZONATECH_6MONTH_PRICE'),
+            'free_questions_limit' => self::get_price('zonatech_free_questions_limit', 'ZONATECH_FREE_QUESTIONS_LIMIT'),
+            'scratch_card_price' => self::get_price('zonatech_scratch_card_price', 'ZONATECH_SCRATCH_CARD_PRICE'),
+            'waec_card_price' => self::get_price('zonatech_waec_card_price', 'ZONATECH_WAEC_CARD_PRICE'),
+            'neco_card_price' => self::get_price('zonatech_neco_card_price', 'ZONATECH_NECO_CARD_PRICE'),
+            'jamb_card_price' => get_option('zonatech_jamb_card_price', 5000),
+            'nin_slip_price' => self::get_price('zonatech_nin_slip_price', 'ZONATECH_NIN_SLIP_PRICE'),
+            'nin_standard_slip_price' => self::get_price('zonatech_nin_standard_slip_price', 'ZONATECH_NIN_STANDARD_SLIP_PRICE'),
+            'nin_slip_download_price' => self::get_price('zonatech_nin_slip_download_price', 'ZONATECH_NIN_SLIP_DOWNLOAD_PRICE'),
+            'nin_modification_price' => self::get_price('zonatech_nin_modification_price', 'ZONATECH_NIN_MODIFICATION_PRICE'),
+            'nin_dob_correction_price' => self::get_price('zonatech_nin_dob_correction_price', 'ZONATECH_NIN_DOB_CORRECTION_PRICE'),
+        );
+        
+        wp_send_json_success($pricing);
     }
     
     public function render_dashboard() {
@@ -172,6 +287,10 @@ class ZonaTech_Admin {
     
     public function render_feedback() {
         include ZONATECH_PLUGIN_DIR . 'admin/views/feedback.php';
+    }
+    
+    public function render_pricing() {
+        include ZONATECH_PLUGIN_DIR . 'admin/views/pricing.php';
     }
     
     public function render_settings() {
