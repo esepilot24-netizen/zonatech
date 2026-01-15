@@ -330,90 +330,72 @@ class ZonaTech_User_Auth {
             return;
         }
         
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'zonatech_pending_users';
+        // Generate unique username
+        $base_username = sanitize_user(strtolower($first_name . $last_name));
+        if (empty($base_username)) {
+            $base_username = 'user';
+        }
+        $username = $base_username . wp_rand(100, 999);
         
-        // Create pending users table if not exists and verify it was created
-        $table_ready = $this->create_pending_users_table();
-        
-        if (!$table_ready) {
-            error_log('ZonaTech: Registration failed - could not create or verify pending_users table');
-            wp_send_json_error(array('message' => 'System configuration error. Please contact support.'));
-            return;
+        // Ensure username is unique
+        $counter = 1;
+        while (username_exists($username)) {
+            $username = $base_username . wp_rand(100, 999);
+            $counter++;
+            if ($counter > 10) {
+                $username = $base_username . '_' . time();
+                break;
+            }
         }
         
-        // Clean up expired pending registrations for all users (housekeeping)
-        $wpdb->query($wpdb->prepare(
-            "DELETE FROM `" . esc_sql($table_name) . "` WHERE expires_at < %s",
-            current_time('mysql')
-        ));
+        error_log('ZonaTech: Creating user directly with username: ' . $username . ', email: ' . $email);
         
-        // Delete any existing pending registration for this email (allows re-registration)
-        $wpdb->delete($table_name, array('email' => $email), array('%s'));
-        
-        // Generate verification code
-        $verification_code = $this->generate_verification_code();
-        
-        // Prepare data for insert
-        $insert_data = array(
+        // Create user directly (no verification required)
+        $user_id = wp_insert_user(array(
+            'user_login' => $username,
+            'user_email' => $email,
+            'user_pass' => $password, // WordPress will hash this
             'first_name' => $first_name,
             'last_name' => $last_name,
-            'email' => $email,
-            'phone' => $phone,
-            'password' => wp_hash_password($password),
-            'verification_code' => $verification_code,
-            'expires_at' => date('Y-m-d H:i:s', strtotime('+30 minutes')),
-            'created_at' => current_time('mysql')
-        );
+            'display_name' => $first_name . ' ' . $last_name,
+            'role' => 'subscriber'
+        ));
         
-        // Store pending registration with explicit format types
-        $insert_result = $wpdb->insert(
-            $table_name, 
-            $insert_data, 
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
-        );
+        if (is_wp_error($user_id)) {
+            $error_msg = $user_id->get_error_message();
+            error_log('ZonaTech: User creation failed - ' . $error_msg);
+            wp_send_json_error(array('message' => 'Failed to create account: ' . $error_msg));
+            return;
+        }
         
-        if ($insert_result === false) {
-            // Log the database error for debugging
-            $db_error = $wpdb->last_error;
-            error_log('ZonaTech Registration DB Error: ' . $db_error);
-            error_log('ZonaTech Registration Data: ' . print_r($insert_data, true));
-            
-            // Check if it's a duplicate email error
-            if (strpos(strtolower($db_error), 'duplicate') !== false) {
-                wp_send_json_error(array('message' => 'An account with this email already exists. Please try logging in.'));
-            } else {
-                wp_send_json_error(array('message' => 'Failed to create registration. Database error occurred.'));
+        // Update user meta
+        if (!empty($phone)) {
+            update_user_meta($user_id, 'phone', $phone);
+        }
+        update_user_meta($user_id, 'zonatech_registered', current_time('mysql'));
+        update_user_meta($user_id, 'zonatech_email_verified', true);
+        
+        // Log activity
+        if (class_exists('ZonaTech_Activity_Log')) {
+            try {
+                ZonaTech_Activity_Log::log($user_id, 'registration', 'User registered successfully');
+            } catch (Exception $e) {
+                error_log('ZonaTech: Activity log failed - ' . $e->getMessage());
             }
-            return;
         }
         
-        $pending_user_id = $wpdb->insert_id;
-        
-        if (!$pending_user_id || $pending_user_id <= 0) {
-            error_log('ZonaTech: Registration failed - insert_id was ' . var_export($pending_user_id, true));
-            wp_send_json_error(array('message' => 'Failed to create registration. Please try again.'));
-            return;
+        // Send welcome email (non-blocking)
+        try {
+            $this->send_approval_email($email, $first_name);
+        } catch (Exception $e) {
+            error_log('ZonaTech: Welcome email failed - ' . $e->getMessage());
         }
         
-        // Send verification email
-        $email_sent = $this->send_verification_email($email, $first_name, $verification_code);
-        
-        if (!$email_sent) {
-            // Clean up the pending registration if email fails
-            $wpdb->delete($table_name, array('id' => $pending_user_id), array('%d'));
-            error_log('ZonaTech: Failed to send verification email to ' . $email);
-            wp_send_json_error(array('message' => 'Failed to send verification email. Please check your email address and try again.'));
-            return;
-        }
-        
-        // Build the redirect URL to the verification page
-        $redirect_url = home_url('/zonatech-verify-email/') . '?pending_id=' . intval($pending_user_id) . '&email=' . urlencode($email);
+        error_log('ZonaTech: User created successfully - user_id: ' . $user_id);
         
         wp_send_json_success(array(
-            'message' => 'Verification code sent to your email!',
-            'pending_user_id' => intval($pending_user_id),
-            'redirect' => $redirect_url
+            'message' => 'Account created successfully! You can now log in.',
+            'redirect' => home_url('/zonatech-login/')
         ));
     }
     
