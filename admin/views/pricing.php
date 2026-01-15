@@ -16,7 +16,7 @@ $free_questions_limit = ZonaTech_Admin::get_price('zonatech_free_questions_limit
 $scratch_card_price = ZonaTech_Admin::get_price('zonatech_scratch_card_price', 'ZONATECH_SCRATCH_CARD_PRICE');
 $waec_card_price = ZonaTech_Admin::get_price('zonatech_waec_card_price', 'ZONATECH_WAEC_CARD_PRICE');
 $neco_card_price = ZonaTech_Admin::get_price('zonatech_neco_card_price', 'ZONATECH_NECO_CARD_PRICE');
-$jamb_card_price = get_option('zonatech_jamb_card_price', 5000);
+$jamb_card_price = ZonaTech_Admin::get_price('zonatech_jamb_card_price', 'ZONATECH_SCRATCH_CARD_PRICE');
 
 $nin_slip_price = ZonaTech_Admin::get_price('zonatech_nin_slip_price', 'ZONATECH_NIN_SLIP_PRICE');
 $nin_standard_slip_price = ZonaTech_Admin::get_price('zonatech_nin_standard_slip_price', 'ZONATECH_NIN_STANDARD_SLIP_PRICE');
@@ -438,6 +438,14 @@ $nin_dob_correction_price = ZonaTech_Admin::get_price('zonatech_nin_dob_correcti
     color: #991b1b;
     border-left: 4px solid #ef4444;
 }
+.spin-icon {
+    margin-top: 4px;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
 @media (max-width: 1200px) {
     .zonatech-pricing-page .pricing-summary-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -464,7 +472,7 @@ jQuery(document).ready(function($) {
         var $message = $('#pricing-message');
         var originalText = $btn.html();
         
-        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update" style="margin-top: 4px; animation: spin 1s linear infinite;"></span> Saving...');
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update spin-icon"></span> Saving...');
         $spinner.addClass('is-active');
         $message.hide();
         

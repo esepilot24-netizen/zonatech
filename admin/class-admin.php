@@ -240,7 +240,7 @@ class ZonaTech_Admin {
             'scratch_card_price' => self::get_price('zonatech_scratch_card_price', 'ZONATECH_SCRATCH_CARD_PRICE'),
             'waec_card_price' => self::get_price('zonatech_waec_card_price', 'ZONATECH_WAEC_CARD_PRICE'),
             'neco_card_price' => self::get_price('zonatech_neco_card_price', 'ZONATECH_NECO_CARD_PRICE'),
-            'jamb_card_price' => get_option('zonatech_jamb_card_price', 5000),
+            'jamb_card_price' => self::get_price('zonatech_jamb_card_price', 'ZONATECH_SCRATCH_CARD_PRICE'),
             'nin_slip_price' => self::get_price('zonatech_nin_slip_price', 'ZONATECH_NIN_SLIP_PRICE'),
             'nin_standard_slip_price' => self::get_price('zonatech_nin_standard_slip_price', 'ZONATECH_NIN_STANDARD_SLIP_PRICE'),
             'nin_slip_download_price' => self::get_price('zonatech_nin_slip_download_price', 'ZONATECH_NIN_SLIP_DOWNLOAD_PRICE'),
