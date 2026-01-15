@@ -314,8 +314,9 @@ class ZonaTech_User_Auth {
             return;
         }
         
+        // Check if email already exists in WordPress users table
         if (email_exists($email)) {
-            wp_send_json_error(array('message' => 'Email address already exists.'));
+            wp_send_json_error(array('message' => 'An account with this email already exists. Please try logging in.'));
             return;
         }
         
@@ -329,7 +330,6 @@ class ZonaTech_User_Auth {
             return;
         }
         
-        // Check if there's already a pending verification for this email
         global $wpdb;
         $table_name = $wpdb->prefix . 'zonatech_pending_users';
         
@@ -342,7 +342,13 @@ class ZonaTech_User_Auth {
             return;
         }
         
-        // Delete any existing pending registration for this email
+        // Clean up expired pending registrations for all users (housekeeping)
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM `" . esc_sql($table_name) . "` WHERE expires_at < %s",
+            current_time('mysql')
+        ));
+        
+        // Delete any existing pending registration for this email (allows re-registration)
         $wpdb->delete($table_name, array('email' => $email), array('%s'));
         
         // Generate verification code
@@ -412,6 +418,11 @@ class ZonaTech_User_Auth {
     }
     
     public function handle_verify_email() {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'zonatech_pending_users';
+        $pending_user_id = 0;
+        $user_id = null;
+        
         try {
             // Verify nonce
             if (!wp_verify_nonce($_POST['nonce'] ?? '', 'zonatech_nonce')) {
@@ -432,20 +443,19 @@ class ZonaTech_User_Auth {
                 return;
             }
             
-            global $wpdb;
-            $table_name = $wpdb->prefix . 'zonatech_pending_users';
-            
             // Check if table exists
-            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") === $table_name;
+            $tables = $wpdb->get_col("SHOW TABLES");
+            $table_exists = in_array($table_name, $tables, true);
+            
             if (!$table_exists) {
                 error_log('ZonaTech: Verification failed - pending_users table does not exist');
                 wp_send_json_error(array('message' => 'System error. Please contact support.'));
                 return;
             }
             
-            // Get pending registration
+            // Get pending registration with both ID and code match
             $pending = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM $table_name WHERE id = %d AND verification_code = %s",
+                "SELECT * FROM `" . esc_sql($table_name) . "` WHERE id = %d AND verification_code = %s",
                 $pending_user_id,
                 $verification_code
             ));
@@ -453,7 +463,7 @@ class ZonaTech_User_Auth {
             if (!$pending) {
                 // Try to get just by ID to give better error message
                 $pending_by_id = $wpdb->get_row($wpdb->prepare(
-                    "SELECT * FROM $table_name WHERE id = %d",
+                    "SELECT * FROM `" . esc_sql($table_name) . "` WHERE id = %d",
                     $pending_user_id
                 ));
                 
@@ -469,32 +479,49 @@ class ZonaTech_User_Auth {
             
             // Check if expired
             if (strtotime($pending->expires_at) < time()) {
-                $wpdb->delete($table_name, array('id' => $pending_user_id));
+                // Delete the expired pending record so user can re-register
+                $wpdb->delete($table_name, array('id' => $pending_user_id), array('%d'));
                 error_log('ZonaTech: Verification failed - code expired for pending_user_id: ' . $pending_user_id);
                 wp_send_json_error(array('message' => 'Verification code has expired. Please register again.'));
                 return;
             }
             
-            // Create the actual user
-            $username = sanitize_user(strtolower($pending->first_name . $pending->last_name) . wp_rand(100, 999));
+            // Check if email already exists in WordPress users (in case of race condition)
+            if (email_exists($pending->email)) {
+                // Email already exists - clean up pending record
+                $wpdb->delete($table_name, array('id' => $pending_user_id), array('%d'));
+                error_log('ZonaTech: Verification - email already exists in users table: ' . $pending->email);
+                wp_send_json_error(array('message' => 'This email is already registered. Please try logging in.'));
+                return;
+            }
+            
+            // Generate unique username
+            $base_username = sanitize_user(strtolower($pending->first_name . $pending->last_name));
+            if (empty($base_username)) {
+                $base_username = 'user';
+            }
+            $username = $base_username . wp_rand(100, 999);
             
             // Ensure username is unique
-            $base_username = $username;
             $counter = 1;
             while (username_exists($username)) {
-                $username = $base_username . $counter;
+                $username = $base_username . wp_rand(100, 9999);
                 $counter++;
+                if ($counter > 10) {
+                    $username = $base_username . '_' . time();
+                    break;
+                }
             }
             
             error_log('ZonaTech: Creating user with username: ' . $username . ', email: ' . $pending->email);
             
-            // Generate a temporary password for user creation
+            // Create user with a temporary password
             $temp_password = wp_generate_password(24, true, true);
             
             $user_id = wp_insert_user(array(
                 'user_login' => $username,
                 'user_email' => $pending->email,
-                'user_pass' => $temp_password, // Temporary password
+                'user_pass' => $temp_password,
                 'first_name' => $pending->first_name,
                 'last_name' => $pending->last_name,
                 'display_name' => $pending->first_name . ' ' . $pending->last_name,
@@ -502,13 +529,22 @@ class ZonaTech_User_Auth {
             ));
             
             if (is_wp_error($user_id)) {
-                error_log('ZonaTech: User creation failed - ' . $user_id->get_error_message());
-                wp_send_json_error(array('message' => $user_id->get_error_message()));
+                $error_msg = $user_id->get_error_message();
+                error_log('ZonaTech: User creation failed - ' . $error_msg);
+                
+                // Check if it's a duplicate email error
+                if (strpos(strtolower($error_msg), 'email') !== false) {
+                    // Clean up the pending record since email is taken
+                    $wpdb->delete($table_name, array('id' => $pending_user_id), array('%d'));
+                    wp_send_json_error(array('message' => 'This email is already registered. Please try logging in.'));
+                } else {
+                    wp_send_json_error(array('message' => 'Failed to create account: ' . $error_msg));
+                }
                 return;
             }
             
             // Set the password directly from the stored hash
-            $wpdb->update(
+            $password_updated = $wpdb->update(
                 $wpdb->users,
                 array('user_pass' => $pending->password),
                 array('ID' => $user_id),
@@ -516,7 +552,11 @@ class ZonaTech_User_Auth {
                 array('%d')
             );
             
-            // Clear the user cache to ensure the new password is recognized
+            if ($password_updated === false) {
+                error_log('ZonaTech: Failed to update password hash for user_id: ' . $user_id);
+            }
+            
+            // Clear all user caches to ensure the new password is recognized
             clean_user_cache($user_id);
             wp_cache_delete($user_id, 'users');
             wp_cache_delete($pending->email, 'useremail');
@@ -527,10 +567,13 @@ class ZonaTech_User_Auth {
             update_user_meta($user_id, 'zonatech_registered', current_time('mysql'));
             update_user_meta($user_id, 'zonatech_email_verified', true);
             
-            // Delete pending registration
-            $wpdb->delete($table_name, array('id' => $pending_user_id));
+            // Delete pending registration - THIS IS CRITICAL
+            $delete_result = $wpdb->delete($table_name, array('id' => $pending_user_id), array('%d'));
+            if ($delete_result === false) {
+                error_log('ZonaTech: Warning - failed to delete pending record id: ' . $pending_user_id);
+            }
             
-            // Log activity
+            // Log activity (non-blocking)
             if (class_exists('ZonaTech_Activity_Log')) {
                 try {
                     ZonaTech_Activity_Log::log($user_id, 'registration', 'User registered and verified email');
@@ -539,8 +582,12 @@ class ZonaTech_User_Auth {
                 }
             }
             
-            // Send approval email
-            $this->send_approval_email($pending->email, $pending->first_name);
+            // Send approval email (non-blocking)
+            try {
+                $this->send_approval_email($pending->email, $pending->first_name);
+            } catch (Exception $e) {
+                error_log('ZonaTech: Approval email failed - ' . $e->getMessage());
+            }
             
             error_log('ZonaTech: User created successfully - user_id: ' . $user_id);
             
@@ -551,7 +598,23 @@ class ZonaTech_User_Auth {
             
         } catch (Exception $e) {
             error_log('ZonaTech: Verification exception - ' . $e->getMessage());
-            wp_send_json_error(array('message' => 'An error occurred during verification. Please try again.'));
+            
+            // If user was partially created, try to clean up
+            if ($user_id && !is_wp_error($user_id)) {
+                // User was created but something else failed - don't delete, just log
+                error_log('ZonaTech: User ' . $user_id . ' was created but verification had an error');
+                // Clean up pending record since user exists
+                if ($pending_user_id > 0) {
+                    $wpdb->delete($table_name, array('id' => $pending_user_id), array('%d'));
+                }
+                // Still return success since user was created
+                wp_send_json_success(array(
+                    'message' => 'Account created! You can now log in.',
+                    'redirect' => home_url('/zonatech-login/')
+                ));
+            } else {
+                wp_send_json_error(array('message' => 'An error occurred during verification. Please try again.'));
+            }
         }
     }
     
