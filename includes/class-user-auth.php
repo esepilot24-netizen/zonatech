@@ -333,16 +333,21 @@ class ZonaTech_User_Auth {
         // Generate unique username
         $base_username = sanitize_user(strtolower($first_name . $last_name));
         if (empty($base_username)) {
-            $base_username = 'user';
+            // Fallback to email prefix if name sanitization fails
+            $email_parts = explode('@', $email);
+            $base_username = sanitize_user(strtolower($email_parts[0]));
+            if (empty($base_username)) {
+                $base_username = 'user';
+            }
         }
         $username = $base_username . wp_rand(100, 999);
         
-        // Ensure username is unique
+        // Ensure username is unique with sequential counter
         $counter = 1;
         while (username_exists($username)) {
-            $username = $base_username . wp_rand(100, 999);
+            $username = $base_username . $counter . wp_rand(10, 99);
             $counter++;
-            if ($counter > 10) {
+            if ($counter > 20) {
                 $username = $base_username . '_' . time();
                 break;
             }
