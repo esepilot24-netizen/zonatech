@@ -306,22 +306,27 @@ class ZonaTech_User_Auth {
         // Validation
         if (empty($first_name) || empty($last_name) || empty($email) || empty($password)) {
             wp_send_json_error(array('message' => 'All fields are required.'));
+            return;
         }
         
         if (!is_email($email)) {
             wp_send_json_error(array('message' => 'Please enter a valid email address.'));
+            return;
         }
         
         if (email_exists($email)) {
             wp_send_json_error(array('message' => 'Email address already exists.'));
+            return;
         }
         
         if (strlen($password) < 6) {
             wp_send_json_error(array('message' => 'Password must be at least 6 characters.'));
+            return;
         }
         
         if ($password !== $confirm_password) {
             wp_send_json_error(array('message' => 'Passwords do not match.'));
+            return;
         }
         
         // Check if there's already a pending verification for this email
@@ -353,12 +358,14 @@ class ZonaTech_User_Auth {
             // Log the database error for debugging
             error_log('ZonaTech Registration DB Error: ' . $wpdb->last_error);
             wp_send_json_error(array('message' => 'Failed to create registration. Please try again later.'));
+            return;
         }
         
         $pending_user_id = $wpdb->insert_id;
         
         if (!$pending_user_id) {
             wp_send_json_error(array('message' => 'Failed to create registration. Please try again.'));
+            return;
         }
         
         // Send verification email
@@ -367,6 +374,7 @@ class ZonaTech_User_Auth {
         if (!$email_sent) {
             $wpdb->delete($table_name, array('id' => $pending_user_id));
             wp_send_json_error(array('message' => 'Failed to send verification email. Please try again.'));
+            return;
         }
         
         // Build the redirect URL to the verification page
@@ -446,15 +454,27 @@ class ZonaTech_User_Auth {
             // Create the actual user
             $username = sanitize_user(strtolower($pending->first_name . $pending->last_name) . wp_rand(100, 999));
             
+            // Ensure username is unique
+            $base_username = $username;
+            $counter = 1;
+            while (username_exists($username)) {
+                $username = $base_username . $counter;
+                $counter++;
+            }
+            
             error_log('ZonaTech: Creating user with username: ' . $username . ', email: ' . $pending->email);
+            
+            // Generate a temporary password for user creation
+            $temp_password = wp_generate_password(24, true, true);
             
             $user_id = wp_insert_user(array(
                 'user_login' => $username,
                 'user_email' => $pending->email,
-                'user_pass' => '', // Empty because we'll set it manually
+                'user_pass' => $temp_password, // Temporary password
                 'first_name' => $pending->first_name,
                 'last_name' => $pending->last_name,
-                'display_name' => $pending->first_name . ' ' . $pending->last_name
+                'display_name' => $pending->first_name . ' ' . $pending->last_name,
+                'role' => 'subscriber'
             ));
             
             if (is_wp_error($user_id)) {
@@ -463,12 +483,20 @@ class ZonaTech_User_Auth {
                 return;
             }
             
-            // Set the password directly (it's already hashed)
+            // Set the password directly from the stored hash
             $wpdb->update(
                 $wpdb->users,
                 array('user_pass' => $pending->password),
-                array('ID' => $user_id)
+                array('ID' => $user_id),
+                array('%s'),
+                array('%d')
             );
+            
+            // Clear the user cache to ensure the new password is recognized
+            clean_user_cache($user_id);
+            wp_cache_delete($user_id, 'users');
+            wp_cache_delete($pending->email, 'useremail');
+            wp_cache_delete($username, 'userlogins');
             
             // Update user meta
             update_user_meta($user_id, 'phone', $pending->phone);
@@ -510,6 +538,7 @@ class ZonaTech_User_Auth {
         
         if (empty($pending_user_id)) {
             wp_send_json_error(array('message' => 'Invalid request.'));
+            return;
         }
         
         global $wpdb;
@@ -523,6 +552,7 @@ class ZonaTech_User_Auth {
         
         if (!$pending) {
             wp_send_json_error(array('message' => 'Registration not found. Please register again.'));
+            return;
         }
         
         // Generate new verification code
@@ -539,6 +569,7 @@ class ZonaTech_User_Auth {
         
         if (!$email_sent) {
             wp_send_json_error(array('message' => 'Failed to send verification email. Please try again.'));
+            return;
         }
         
         wp_send_json_success(array(
@@ -655,6 +686,7 @@ class ZonaTech_User_Auth {
         
         if (empty($email)) {
             wp_send_json_error(array('message' => 'Email address is required.'));
+            return;
         }
         
         $user = get_user_by('email', $email);
@@ -664,6 +696,7 @@ class ZonaTech_User_Auth {
             wp_send_json_success(array(
                 'message' => 'If this email exists, a password reset link will be sent.'
             ));
+            return;
         }
         
         // Generate reset key
@@ -671,6 +704,7 @@ class ZonaTech_User_Auth {
         
         if (is_wp_error($reset_key)) {
             wp_send_json_error(array('message' => 'Error generating reset link. Please try again.'));
+            return;
         }
         
         // Send reset email
@@ -697,6 +731,7 @@ class ZonaTech_User_Auth {
         
         if (!is_user_logged_in()) {
             wp_send_json_error(array('message' => 'Please login to update your profile.'));
+            return;
         }
         
         $user_id = get_current_user_id();
@@ -706,6 +741,7 @@ class ZonaTech_User_Auth {
         
         if (empty($first_name) || empty($last_name)) {
             wp_send_json_error(array('message' => 'First name and last name are required.'));
+            return;
         }
         
         wp_update_user(array(
@@ -727,6 +763,7 @@ class ZonaTech_User_Auth {
         
         if (!is_user_logged_in()) {
             wp_send_json_error(array('message' => 'Please login to change your password.'));
+            return;
         }
         
         $user_id = get_current_user_id();
@@ -736,20 +773,24 @@ class ZonaTech_User_Auth {
         
         if (empty($current_password) || empty($new_password) || empty($confirm_password)) {
             wp_send_json_error(array('message' => 'All fields are required.'));
+            return;
         }
         
         $user = get_user_by('id', $user_id);
         
         if (!wp_check_password($current_password, $user->user_pass, $user_id)) {
             wp_send_json_error(array('message' => 'Current password is incorrect.'));
+            return;
         }
         
         if (strlen($new_password) < 6) {
             wp_send_json_error(array('message' => 'New password must be at least 6 characters.'));
+            return;
         }
         
         if ($new_password !== $confirm_password) {
             wp_send_json_error(array('message' => 'New passwords do not match.'));
+            return;
         }
         
         wp_set_password($new_password, $user_id);
