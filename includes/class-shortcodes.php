@@ -12,6 +12,9 @@ class ZonaTech_Shortcodes {
     
     private static $instance = null;
     
+    // Redirect delay in milliseconds
+    const REDIRECT_DELAY_MS = 1500;
+    
     public static function get_instance() {
         if (null === self::$instance) {
             self::$instance = new self();
@@ -44,6 +47,32 @@ class ZonaTech_Shortcodes {
     }
     
     /**
+     * Get fallback exam types data
+     */
+    private static function get_fallback_exam_types() {
+        return array(
+            'jamb' => array(
+                'name' => 'JAMB',
+                'full_name' => 'Joint Admissions and Matriculation Board',
+                'icon' => 'fas fa-graduation-cap',
+                'color' => '#8b5cf6'
+            ),
+            'waec' => array(
+                'name' => 'WAEC',
+                'full_name' => 'West African Examinations Council',
+                'icon' => 'fas fa-book-open',
+                'color' => '#22c55e'
+            ),
+            'neco' => array(
+                'name' => 'NECO',
+                'full_name' => 'National Examinations Council',
+                'icon' => 'fas fa-scroll',
+                'color' => '#f59e0b'
+            )
+        );
+    }
+    
+    /**
      * Render login required message for shortcodes
      * This is displayed inline instead of redirecting (which can cause issues)
      */
@@ -52,6 +81,7 @@ class ZonaTech_Shortcodes {
         if (!empty($redirect_page)) {
             $login_url .= '?redirect=' . urlencode($redirect_page);
         }
+        $delay_ms = self::REDIRECT_DELAY_MS;
         
         ob_start();
         ?>
@@ -71,10 +101,9 @@ class ZonaTech_Shortcodes {
             </div>
         </div>
         <script>
-        // Auto-redirect to login page after 2 seconds
         setTimeout(function() {
             window.location.href = '<?php echo esc_js($login_url); ?>';
-        }, 2000);
+        }, <?php echo intval($delay_ms); ?>);
         </script>
         <?php
         return ob_get_clean();
@@ -84,6 +113,8 @@ class ZonaTech_Shortcodes {
         // If already logged in, show redirect message instead of using wp_redirect
         // This prevents "headers already sent" issues
         if (is_user_logged_in()) {
+            $dashboard_url = site_url('/zonatech-dashboard/');
+            $delay_ms = self::REDIRECT_DELAY_MS;
             ob_start();
             ?>
             <div class="zonatech-container">
@@ -91,15 +122,15 @@ class ZonaTech_Shortcodes {
                     <i class="fas fa-check-circle" style="font-size: 4rem; color: #22c55e; margin-bottom: 1.5rem;"></i>
                     <h2 class="text-white" style="margin-bottom: 1rem;">Already Logged In</h2>
                     <p class="text-muted" style="margin-bottom: 1.5rem;">Redirecting to your dashboard...</p>
-                    <a href="<?php echo esc_url(site_url('/zonatech-dashboard/')); ?>" class="btn btn-primary">
+                    <a href="<?php echo esc_url($dashboard_url); ?>" class="btn btn-primary">
                         <i class="fas fa-tachometer-alt"></i> Go to Dashboard
                     </a>
                 </div>
             </div>
             <script>
             setTimeout(function() {
-                window.location.href = '<?php echo esc_js(site_url('/zonatech-dashboard/')); ?>';
-            }, 1000);
+                window.location.href = '<?php echo esc_js($dashboard_url); ?>';
+            }, <?php echo intval($delay_ms); ?>);
             </script>
             <?php
             return ob_get_clean();
@@ -113,6 +144,8 @@ class ZonaTech_Shortcodes {
     public function render_register() {
         // If already logged in, show redirect message
         if (is_user_logged_in()) {
+            $dashboard_url = site_url('/zonatech-dashboard/');
+            $delay_ms = self::REDIRECT_DELAY_MS;
             ob_start();
             ?>
             <div class="zonatech-container">
@@ -120,15 +153,15 @@ class ZonaTech_Shortcodes {
                     <i class="fas fa-check-circle" style="font-size: 4rem; color: #22c55e; margin-bottom: 1.5rem;"></i>
                     <h2 class="text-white" style="margin-bottom: 1rem;">Already Logged In</h2>
                     <p class="text-muted" style="margin-bottom: 1.5rem;">You already have an account. Redirecting to dashboard...</p>
-                    <a href="<?php echo esc_url(site_url('/zonatech-dashboard/')); ?>" class="btn btn-primary">
+                    <a href="<?php echo esc_url($dashboard_url); ?>" class="btn btn-primary">
                         <i class="fas fa-tachometer-alt"></i> Go to Dashboard
                     </a>
                 </div>
             </div>
             <script>
             setTimeout(function() {
-                window.location.href = '<?php echo esc_js(site_url('/zonatech-dashboard/')); ?>';
-            }, 1000);
+                window.location.href = '<?php echo esc_js($dashboard_url); ?>';
+            }, <?php echo intval($delay_ms); ?>);
             </script>
             <?php
             return ob_get_clean();
@@ -142,6 +175,8 @@ class ZonaTech_Shortcodes {
     public function render_verify_email() {
         // If already logged in, redirect to dashboard
         if (is_user_logged_in()) {
+            $dashboard_url = site_url('/zonatech-dashboard/');
+            $delay_ms = self::REDIRECT_DELAY_MS;
             ob_start();
             ?>
             <div class="zonatech-container">
@@ -149,15 +184,15 @@ class ZonaTech_Shortcodes {
                     <i class="fas fa-check-circle" style="font-size: 4rem; color: #22c55e; margin-bottom: 1.5rem;"></i>
                     <h2 class="text-white" style="margin-bottom: 1rem;">Already Verified</h2>
                     <p class="text-muted" style="margin-bottom: 1.5rem;">Your email is already verified. Redirecting to dashboard...</p>
-                    <a href="<?php echo esc_url(site_url('/zonatech-dashboard/')); ?>" class="btn btn-primary">
+                    <a href="<?php echo esc_url($dashboard_url); ?>" class="btn btn-primary">
                         <i class="fas fa-tachometer-alt"></i> Go to Dashboard
                     </a>
                 </div>
             </div>
             <script>
             setTimeout(function() {
-                window.location.href = '<?php echo esc_js(site_url('/zonatech-dashboard/')); ?>';
-            }, 1000);
+                window.location.href = '<?php echo esc_js($dashboard_url); ?>';
+            }, <?php echo intval($delay_ms); ?>);
             </script>
             <?php
             return ob_get_clean();
@@ -179,15 +214,17 @@ class ZonaTech_Shortcodes {
             $user_data = ZonaTech_User_Auth::get_user_dashboard_data();
         } catch (Exception $e) {
             error_log('ZonaTech Dashboard Error: ' . $e->getMessage());
+            // Cache wp_get_current_user() call
+            $current_user = wp_get_current_user();
             $user_data = array(
                 'user' => array(
-                    'display_name' => wp_get_current_user()->display_name,
-                    'first_name' => wp_get_current_user()->first_name ?: 'User',
-                    'last_name' => wp_get_current_user()->last_name,
-                    'email' => wp_get_current_user()->user_email,
+                    'display_name' => $current_user->display_name,
+                    'first_name' => $current_user->first_name ?: 'User',
+                    'last_name' => $current_user->last_name,
+                    'email' => $current_user->user_email,
                     'avatar' => get_avatar_url(get_current_user_id()),
                     'phone' => '',
-                    'registered' => wp_get_current_user()->user_registered
+                    'registered' => $current_user->user_registered
                 ),
                 'stats' => array(
                     'subjects' => 0,
@@ -214,27 +251,7 @@ class ZonaTech_Shortcodes {
             $exam_types = ZonaTech_Past_Questions::get_exam_types();
         } catch (Exception $e) {
             error_log('ZonaTech Past Questions Error: ' . $e->getMessage());
-            // Fallback exam types
-            $exam_types = array(
-                'jamb' => array(
-                    'name' => 'JAMB',
-                    'full_name' => 'Joint Admissions and Matriculation Board',
-                    'icon' => 'fas fa-graduation-cap',
-                    'color' => '#8b5cf6'
-                ),
-                'waec' => array(
-                    'name' => 'WAEC',
-                    'full_name' => 'West African Examinations Council',
-                    'icon' => 'fas fa-book-open',
-                    'color' => '#22c55e'
-                ),
-                'neco' => array(
-                    'name' => 'NECO',
-                    'full_name' => 'National Examinations Council',
-                    'icon' => 'fas fa-scroll',
-                    'color' => '#f59e0b'
-                )
-            );
+            $exam_types = self::get_fallback_exam_types();
         }
         
         $is_guest = false;
@@ -294,7 +311,7 @@ class ZonaTech_Shortcodes {
         try {
             $exam_types = ZonaTech_Past_Questions::get_exam_types();
         } catch (Exception $e) {
-            $exam_types = array();
+            $exam_types = self::get_fallback_exam_types();
         }
         
         // Get card types with error handling
@@ -318,6 +335,8 @@ class ZonaTech_Shortcodes {
     public function render_admin_dashboard() {
         // Check if user is admin
         if (!current_user_can('manage_options')) {
+            $dashboard_url = site_url('/zonatech-dashboard/');
+            $delay_ms = self::REDIRECT_DELAY_MS;
             ob_start();
             ?>
             <div class="zonatech-container">
@@ -325,15 +344,15 @@ class ZonaTech_Shortcodes {
                     <i class="fas fa-lock" style="font-size: 4rem; color: #ef4444; margin-bottom: 1.5rem;"></i>
                     <h2 class="text-white" style="margin-bottom: 1rem;">Access Denied</h2>
                     <p class="text-muted" style="margin-bottom: 1.5rem;">You don't have permission to access the admin dashboard.</p>
-                    <a href="<?php echo esc_url(site_url('/zonatech-dashboard/')); ?>" class="btn btn-primary">
+                    <a href="<?php echo esc_url($dashboard_url); ?>" class="btn btn-primary">
                         <i class="fas fa-tachometer-alt"></i> Go to Dashboard
                     </a>
                 </div>
             </div>
             <script>
             setTimeout(function() {
-                window.location.href = '<?php echo esc_js(site_url('/zonatech-dashboard/')); ?>';
-            }, 2000);
+                window.location.href = '<?php echo esc_js($dashboard_url); ?>';
+            }, <?php echo intval($delay_ms); ?>);
             </script>
             <?php
             return ob_get_clean();
