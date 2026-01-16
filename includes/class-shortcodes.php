@@ -94,15 +94,13 @@ class ZonaTech_Shortcodes {
             $this->current_user_id = get_current_user_id();
         }
         
-        // Additional check: verify WordPress auth cookie exists
-        if (!$this->is_logged_in && isset($_COOKIE[LOGGED_IN_COOKIE])) {
-            // Cookie exists but is_user_logged_in returned false
-            // This can happen if wp_set_current_user wasn't called yet
-            $user_id = wp_validate_auth_cookie($_COOKIE[LOGGED_IN_COOKIE], 'logged_in');
-            if ($user_id) {
-                wp_set_current_user($user_id);
+        // Additional check: if still not logged in, try wp_get_current_user directly
+        // This is a read-only approach that doesn't modify global state
+        if (!$this->is_logged_in) {
+            $current_user = wp_get_current_user();
+            if ($current_user && $current_user->ID > 0) {
                 $this->is_logged_in = true;
-                $this->current_user_id = $user_id;
+                $this->current_user_id = $current_user->ID;
             }
         }
         
