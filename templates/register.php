@@ -2,7 +2,7 @@
 /**
  * Register Template
  * 
- * User registration form with email verification
+ * User registration form - creates account directly and redirects to login
  */
 
 if (!defined('ABSPATH')) exit;
@@ -115,75 +115,34 @@ if (!defined('ABSPATH')) exit;
 jQuery(document).ready(function($) {
     'use strict';
     
-    // Hide loading screen
-    requestAnimationFrame(function() {
+    // Hide loading screen with fade effect
+    setTimeout(function() {
         $('#zonatech-loading-screen').addClass('fade-out');
         setTimeout(function() {
             $('#zonatech-loading-screen').hide();
-        }, 100);
-    });
+        }, 300);
+    }, 100);
     
-    // Password visibility toggle for all password fields
-    $('.password-toggle-btn').on('click', function(e) {
+    // Password visibility toggle
+    $(document).on('click', '.password-toggle-btn', function(e) {
         e.preventDefault();
-        var $btn = $(this);
-        var targetId = $btn.data('target');
-        var $passwordField = $('#' + targetId);
-        var $icon = $btn.find('i');
+        e.stopPropagation();
+        var targetId = $(this).data('target');
+        var $input = $('#' + targetId);
+        var $icon = $(this).find('i');
         
-        if ($passwordField.attr('type') === 'password') {
-            $passwordField.attr('type', 'text');
+        if ($input.attr('type') === 'password') {
+            $input.attr('type', 'text');
             $icon.removeClass('fa-eye').addClass('fa-eye-slash');
-            $btn.css('color', '#a78bfa');
         } else {
-            $passwordField.attr('type', 'password');
+            $input.attr('type', 'password');
             $icon.removeClass('fa-eye-slash').addClass('fa-eye');
-            $btn.css('color', '#8b5cf6');
         }
     });
     
-    // Client-side validation helper
-    function validateForm($form) {
-        var firstName = $.trim($form.find('[name="first_name"]').val());
-        var lastName = $.trim($form.find('[name="last_name"]').val());
-        var email = $.trim($form.find('[name="email"]').val());
-        var password = $form.find('[name="password"]').val();
-        var confirmPassword = $form.find('[name="confirm_password"]').val();
-        var termsAccepted = $form.find('[name="terms"]').is(':checked');
-        
-        if (!firstName) {
-            return { valid: false, message: 'Please enter your first name.' };
-        }
-        if (!lastName) {
-            return { valid: false, message: 'Please enter your last name.' };
-        }
-        if (!email) {
-            return { valid: false, message: 'Please enter your email address.' };
-        }
-        // Basic email validation
-        var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            return { valid: false, message: 'Please enter a valid email address.' };
-        }
-        if (!password) {
-            return { valid: false, message: 'Please enter a password.' };
-        }
-        if (password.length < 6) {
-            return { valid: false, message: 'Password must be at least 6 characters.' };
-        }
-        if (password !== confirmPassword) {
-            return { valid: false, message: 'Passwords do not match.' };
-        }
-        if (!termsAccepted) {
-            return { valid: false, message: 'Please accept the Terms of Service and Privacy Policy.' };
-        }
-        
-        return { valid: true };
-    }
-    
-    // Show notification helper
+    // Notification helper
     function showNotification(message, type) {
-        if (typeof ZonaTechNotify !== 'undefined') {
+        if (typeof ZonaTechNotify !== 'undefined' && ZonaTechNotify) {
             if (type === 'success') {
                 ZonaTechNotify.success(message);
             } else if (type === 'error') {
@@ -196,91 +155,149 @@ jQuery(document).ready(function($) {
         }
     }
     
-    // Handle registration form submission
+    // Form validation
+    function validateForm() {
+        var firstName = $.trim($('#first_name').val());
+        var lastName = $.trim($('#last_name').val());
+        var email = $.trim($('#email').val());
+        var password = $('#reg_password').val();
+        var confirmPassword = $('#reg_confirm_password').val();
+        var termsChecked = $('#terms').is(':checked');
+        
+        if (!firstName) {
+            showNotification('Please enter your first name.', 'error');
+            $('#first_name').focus();
+            return false;
+        }
+        if (!lastName) {
+            showNotification('Please enter your last name.', 'error');
+            $('#last_name').focus();
+            return false;
+        }
+        if (!email) {
+            showNotification('Please enter your email address.', 'error');
+            $('#email').focus();
+            return false;
+        }
+        // Email format validation
+        var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailPattern.test(email)) {
+            showNotification('Please enter a valid email address.', 'error');
+            $('#email').focus();
+            return false;
+        }
+        if (!password) {
+            showNotification('Please enter a password.', 'error');
+            $('#reg_password').focus();
+            return false;
+        }
+        if (password.length < 6) {
+            showNotification('Password must be at least 6 characters.', 'error');
+            $('#reg_password').focus();
+            return false;
+        }
+        if (password !== confirmPassword) {
+            showNotification('Passwords do not match.', 'error');
+            $('#reg_confirm_password').focus();
+            return false;
+        }
+        if (!termsChecked) {
+            showNotification('Please accept the Terms of Service and Privacy Policy.', 'error');
+            return false;
+        }
+        
+        return true;
+    }
+    
+    // Form submission
     $('#zonatech-register-form').on('submit', function(e) {
         e.preventDefault();
         
-        var $form = $(this);
-        var $btn = $('#register-submit-btn');
-        var originalText = $btn.html();
-        
-        // Client-side validation
-        var validation = validateForm($form);
-        if (!validation.valid) {
-            showNotification(validation.message, 'error');
-            return;
+        // Validate form first
+        if (!validateForm()) {
+            return false;
         }
         
-        // Get form values
+        var $form = $(this);
+        var $btn = $('#register-submit-btn');
+        var originalHtml = $btn.html();
+        
+        // Disable button and show loading
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Creating Account...');
+        
+        // Prepare form data
         var formData = {
             action: 'zonatech_register',
             nonce: zonatech_ajax.nonce,
-            first_name: $.trim($form.find('[name="first_name"]').val()),
-            last_name: $.trim($form.find('[name="last_name"]').val()),
-            email: $.trim($form.find('[name="email"]').val()),
-            phone: $.trim($form.find('[name="phone"]').val()),
-            password: $form.find('[name="password"]').val(),
-            confirm_password: $form.find('[name="confirm_password"]').val()
+            first_name: $.trim($('#first_name').val()),
+            last_name: $.trim($('#last_name').val()),
+            email: $.trim($('#email').val()),
+            phone: $.trim($('#phone').val()),
+            password: $('#reg_password').val(),
+            confirm_password: $('#reg_confirm_password').val()
         };
         
-        // Disable button and show loading state
-        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Creating Account...');
-        
+        // Send AJAX request
         $.ajax({
             url: zonatech_ajax.ajax_url,
             type: 'POST',
             data: formData,
             dataType: 'json',
-            timeout: 30000,
+            timeout: 60000, // 60 second timeout
+            cache: false,
             success: function(response) {
-                if (response && response.success) {
+                if (response && response.success === true) {
                     showNotification(response.data.message || 'Account created successfully!', 'success');
                     
-                    // Redirect to login page
-                    var redirectUrl = response.data.redirect || '<?php echo esc_url(site_url('/zonatech-login/')); ?>';
+                    // Clear form
+                    $form[0].reset();
                     
+                    // Redirect to login after short delay
+                    var redirectUrl = (response.data && response.data.redirect) ? response.data.redirect : '<?php echo esc_url(site_url('/zonatech-login/')); ?>';
                     setTimeout(function() {
                         window.location.href = redirectUrl;
                     }, 1500);
                 } else {
-                    var errorMessage = 'Registration failed. Please try again.';
+                    // Error response
+                    var errorMsg = 'Registration failed. Please try again.';
                     if (response && response.data && response.data.message) {
-                        errorMessage = response.data.message;
+                        errorMsg = response.data.message;
                     }
-                    showNotification(errorMessage, 'error');
-                    $btn.prop('disabled', false).html(originalText);
+                    showNotification(errorMsg, 'error');
+                    $btn.prop('disabled', false).html(originalHtml);
                 }
             },
             error: function(xhr, status, error) {
-                console.error('Registration error:', status, error);
-                var errorMessage = 'An error occurred. Please check your connection and try again.';
+                console.error('Registration AJAX Error:', status, error, xhr.responseText);
+                
+                var errorMsg = 'Connection error. Please try again.';
                 
                 if (status === 'timeout') {
-                    errorMessage = 'Request timed out. Please try again.';
+                    errorMsg = 'Request timed out. Please try again.';
                 } else if (xhr.status === 0) {
-                    errorMessage = 'Unable to connect to server. Please check your internet connection.';
+                    errorMsg = 'No internet connection. Please check and try again.';
                 } else if (xhr.status === 403) {
-                    errorMessage = 'Session expired. Please refresh the page and try again.';
+                    errorMsg = 'Session expired. Please refresh the page.';
                 } else if (xhr.status === 500) {
-                    errorMessage = 'Server error. Please try again later.';
-                }
-                
-                // Try to parse response for more specific error
-                if (xhr.responseText) {
+                    errorMsg = 'Server error. Please try again later.';
+                } else if (xhr.responseText) {
+                    // Try to parse response for error message
                     try {
                         var resp = JSON.parse(xhr.responseText);
-                        if (resp.data && resp.data.message) {
-                            errorMessage = resp.data.message;
+                        if (resp && resp.data && resp.data.message) {
+                            errorMsg = resp.data.message;
                         }
-                    } catch(parseError) {
-                        console.warn('Could not parse error response:', parseError.message);
+                    } catch (parseErr) {
+                        // Ignore parse error
                     }
                 }
                 
-                showNotification(errorMessage, 'error');
-                $btn.prop('disabled', false).html(originalText);
+                showNotification(errorMsg, 'error');
+                $btn.prop('disabled', false).html(originalHtml);
             }
         });
+        
+        return false;
     });
 });
 </script>
