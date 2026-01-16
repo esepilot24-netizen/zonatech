@@ -1,7 +1,7 @@
 <?php
 /**
  * Shortcodes Handler Class
- * Rebuilt from scratch to fix navigation issues
+ * Rebuilt from scratch to fix navigation and login detection issues
  */
 
 if (!defined('ABSPATH')) {
@@ -14,6 +14,10 @@ class ZonaTech_Shortcodes {
     
     // Redirect delay in milliseconds - only for login/register pages
     const REDIRECT_DELAY_MS = 1500;
+    
+    // Cache the login status to avoid multiple checks
+    private $is_logged_in = null;
+    private $current_user_id = null;
     
     public static function get_instance() {
         if (null === self::$instance) {
@@ -35,14 +39,85 @@ class ZonaTech_Shortcodes {
         add_shortcode('zonatech_homepage', array($this, 'render_homepage'));
         add_shortcode('zonatech_feedback', array($this, 'render_feedback'));
         add_shortcode('zonatech_admin_dashboard', array($this, 'render_admin_dashboard'));
+        
+        // Add nocache headers for pages that check login status
+        add_action('template_redirect', array($this, 'add_nocache_headers'));
     }
     
     /**
-     * Check if user is logged in
+     * Add nocache headers for ZonaTech pages to prevent caching issues
+     * This ensures login status is always checked fresh
+     */
+    public function add_nocache_headers() {
+        if (is_page()) {
+            $page_slug = get_post_field('post_name', get_post());
+            $zonatech_pages = array(
+                'zonatech-dashboard',
+                'zonatech-past-questions',
+                'zonatech-nin-service',
+                'zonatech-scratch-cards',
+                'zonatech-payment',
+                'zonatech-login',
+                'zonatech-register',
+                'zonatech-admin'
+            );
+            
+            if (in_array($page_slug, $zonatech_pages)) {
+                // Prevent caching of these pages
+                nocache_headers();
+            }
+        }
+    }
+    
+    /**
+     * Check if user is logged in - with multiple verification methods
+     * This handles edge cases where is_user_logged_in() might return incorrect values
      * Returns true if logged in, false if not
      */
     private function check_login() {
-        return is_user_logged_in();
+        // Return cached result if already checked
+        if ($this->is_logged_in !== null) {
+            return $this->is_logged_in;
+        }
+        
+        // Primary check using WordPress function
+        $this->is_logged_in = is_user_logged_in();
+        
+        // If primary check says not logged in, verify with current user check
+        if (!$this->is_logged_in) {
+            $user_id = get_current_user_id();
+            if ($user_id > 0) {
+                $this->is_logged_in = true;
+                $this->current_user_id = $user_id;
+            }
+        } else {
+            $this->current_user_id = get_current_user_id();
+        }
+        
+        // Additional check: verify WordPress auth cookie exists
+        if (!$this->is_logged_in && isset($_COOKIE[LOGGED_IN_COOKIE])) {
+            // Cookie exists but is_user_logged_in returned false
+            // This can happen if wp_set_current_user wasn't called yet
+            $user_id = wp_validate_auth_cookie($_COOKIE[LOGGED_IN_COOKIE], 'logged_in');
+            if ($user_id) {
+                wp_set_current_user($user_id);
+                $this->is_logged_in = true;
+                $this->current_user_id = $user_id;
+            }
+        }
+        
+        return $this->is_logged_in;
+    }
+    
+    /**
+     * Get current user ID (cached)
+     */
+    private function get_user_id() {
+        if ($this->current_user_id !== null) {
+            return $this->current_user_id;
+        }
+        $this->check_login();
+        return $this->current_user_id ?: get_current_user_id();
     }
     
     /**
