@@ -1,9 +1,29 @@
 <?php
 /**
  * Past Questions Template
+ * Rebuilt from scratch to fix navigation and display issues
  */
 
 if (!defined('ABSPATH')) exit;
+
+// Ensure exam_types is an array (defensive coding)
+if (!isset($exam_types) || !is_array($exam_types)) {
+    $exam_types = ZonaTech_Past_Questions::get_exam_types();
+}
+
+// Get current user info
+$current_user_id = get_current_user_id();
+$is_logged_in = is_user_logged_in();
+
+// Get free questions limit from options or constant
+$free_questions_limit = get_option('zonatech_free_questions_limit', 
+    defined('ZONATECH_FREE_QUESTIONS_LIMIT') ? ZONATECH_FREE_QUESTIONS_LIMIT : 10);
+
+// Get prices from options or constants
+$monthly_price = get_option('zonatech_monthly_price', 
+    defined('ZONATECH_MONTHLY_PRICE') ? ZONATECH_MONTHLY_PRICE : 5000);
+$sixmonth_price = get_option('zonatech_sixmonth_price', 
+    defined('ZONATECH_6MONTH_PRICE') ? ZONATECH_6MONTH_PRICE : 25000);
 ?>
 
 <div class="zonatech-container">
@@ -64,26 +84,28 @@ if (!defined('ABSPATH')) exit;
         <!-- Exam Type Cards -->
         <div class="section" style="margin-top: 1rem;">
             <div class="cards-grid mb-3">
-                <?php foreach ($exam_types as $type => $exam): ?>
-                    <div class="service-card animate-card">
-                        <div class="service-card-icon" style="background: linear-gradient(135deg, <?php echo $exam['color']; ?>20 0%, <?php echo $exam['color']; ?>10 100%); color: <?php echo $exam['color']; ?>;">
-                            <i class="<?php echo esc_attr($exam['icon']); ?>"></i>
+                <?php if (!empty($exam_types)): ?>
+                    <?php foreach ($exam_types as $type => $exam): ?>
+                        <div class="service-card animate-card">
+                            <div class="service-card-icon" style="background: linear-gradient(135deg, <?php echo esc_attr($exam['color']); ?>20 0%, <?php echo esc_attr($exam['color']); ?>10 100%); color: <?php echo esc_attr($exam['color']); ?>;">
+                                <i class="<?php echo esc_attr($exam['icon']); ?>"></i>
+                            </div>
+                            <h3 class="service-card-title"><?php echo esc_html($exam['name']); ?></h3>
+                            <p class="service-card-desc"><?php echo esc_html($exam['full_name']); ?></p>
+                            <p class="service-card-price">₦<?php echo number_format($monthly_price); ?>/month</p>
+                            <p class="service-card-price-alt" style="font-size: 0.8rem; color: #a78bfa;">or ₦<?php echo number_format($sixmonth_price); ?>/6 months</p>
                         </div>
-                        <h3 class="service-card-title"><?php echo esc_html($exam['name']); ?></h3>
-                        <p class="service-card-desc"><?php echo esc_html($exam['full_name']); ?></p>
-                        <p class="service-card-price">₦<?php echo number_format(defined('ZONATECH_MONTHLY_PRICE') ? ZONATECH_MONTHLY_PRICE : 5000); ?>/month</p>
-                        <p class="service-card-price-alt" style="font-size: 0.8rem; color: #a78bfa;">or ₦<?php echo number_format(defined('ZONATECH_6MONTH_PRICE') ? ZONATECH_6MONTH_PRICE : 25000); ?>/6 months</p>
-                    </div>
-                <?php endforeach; ?>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
-            <p class="text-success mt-2" style="font-size: 0.9rem;"><i class="fas fa-gift"></i> <strong>Free Preview:</strong> First <?php echo defined('ZONATECH_FREE_QUESTIONS_LIMIT') ? ZONATECH_FREE_QUESTIONS_LIMIT : 10; ?> questions in all subjects are FREE!</p>
+            <p class="text-success mt-2" style="font-size: 0.9rem;"><i class="fas fa-gift"></i> <strong>Free Preview:</strong> First <?php echo intval($free_questions_limit); ?> questions in all subjects are FREE!</p>
         </div>
         
         <!-- Category Selection Section -->
         <div class="glass-card mb-3" id="category-section">
             <h3 class="text-white"><i class="fas fa-layer-group"></i> Subject Categories</h3>
             <p class="text-muted mb-2">Subscribe to access unlimited questions and quizzes. Select exam type first, then choose a category.</p>
-            <p class="text-warning mb-2" style="font-size: 0.85rem;"><i class="fas fa-info-circle"></i> <strong>Pricing:</strong> ₦<?php echo number_format(defined('ZONATECH_MONTHLY_PRICE') ? ZONATECH_MONTHLY_PRICE : 5000); ?>/month or ₦<?php echo number_format(defined('ZONATECH_6MONTH_PRICE') ? ZONATECH_6MONTH_PRICE : 25000); ?>/6 months</p>
+            <p class="text-warning mb-2" style="font-size: 0.85rem;"><i class="fas fa-info-circle"></i> <strong>Pricing:</strong> ₦<?php echo number_format($monthly_price); ?>/month or ₦<?php echo number_format($sixmonth_price); ?>/6 months</p>
             <p class="text-success mb-2"><i class="fas fa-star"></i> <strong>Mathematics & English are compulsory</strong> - Included in ALL categories!</p>
             
             <div class="form-group mb-2">
@@ -92,9 +114,11 @@ if (!defined('ABSPATH')) exit;
                     <i class="fas fa-graduation-cap input-icon"></i>
                     <select id="category-exam-type" class="form-control form-control-icon">
                         <option value="">Select Exam Type</option>
-                        <?php foreach ($exam_types as $type => $exam): ?>
-                            <option value="<?php echo esc_attr($type); ?>"><?php echo esc_html($exam['name']); ?></option>
-                        <?php endforeach; ?>
+                        <?php if (!empty($exam_types)): ?>
+                            <?php foreach ($exam_types as $type => $exam): ?>
+                                <option value="<?php echo esc_attr($type); ?>"><?php echo esc_html($exam['name']); ?></option>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </select>
                 </div>
             </div>
