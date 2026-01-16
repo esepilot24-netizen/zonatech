@@ -12,7 +12,7 @@ class ZonaTech_Shortcodes {
     
     private static $instance = null;
     
-    // Redirect delay in milliseconds
+    // Redirect delay in milliseconds - only for login/register pages
     const REDIRECT_DELAY_MS = 1500;
     
     public static function get_instance() {
@@ -39,8 +39,7 @@ class ZonaTech_Shortcodes {
     
     /**
      * Check if user is logged in
-     * Returns true if logged in, false if redirect needed
-     * Does NOT redirect - caller handles the redirect display
+     * Returns true if logged in, false if not
      */
     private function check_login() {
         return is_user_logged_in();
@@ -73,15 +72,14 @@ class ZonaTech_Shortcodes {
     }
     
     /**
-     * Render login required message for shortcodes
-     * This is displayed inline instead of redirecting (which can cause issues)
+     * Render login required message for shortcodes (NO auto-redirect)
+     * User must click the button to go to login
      */
     private function render_login_required($redirect_page = '') {
         $login_url = site_url('/zonatech-login/');
         if (!empty($redirect_page)) {
             $login_url .= '?redirect=' . urlencode($redirect_page);
         }
-        $delay_ms = self::REDIRECT_DELAY_MS;
         
         ob_start();
         ?>
@@ -100,18 +98,13 @@ class ZonaTech_Shortcodes {
                 </div>
             </div>
         </div>
-        <script>
-        setTimeout(function() {
-            window.location.href = '<?php echo esc_js($login_url); ?>';
-        }, <?php echo intval($delay_ms); ?>);
-        </script>
         <?php
         return ob_get_clean();
     }
     
     public function render_login() {
-        // If already logged in, show redirect message instead of using wp_redirect
-        // This prevents "headers already sent" issues
+        // If already logged in, show redirect message and auto-redirect to dashboard
+        // This is ONLY for the login page - not for other pages
         if (is_user_logged_in()) {
             $dashboard_url = site_url('/zonatech-dashboard/');
             $delay_ms = self::REDIRECT_DELAY_MS;
@@ -142,7 +135,8 @@ class ZonaTech_Shortcodes {
     }
     
     public function render_register() {
-        // If already logged in, show redirect message
+        // If already logged in, show redirect message and auto-redirect
+        // This is ONLY for the register page
         if (is_user_logged_in()) {
             $dashboard_url = site_url('/zonatech-dashboard/');
             $delay_ms = self::REDIRECT_DELAY_MS;
@@ -174,6 +168,7 @@ class ZonaTech_Shortcodes {
     
     public function render_verify_email() {
         // If already logged in, redirect to dashboard
+        // This is ONLY for the verify-email page
         if (is_user_logged_in()) {
             $dashboard_url = site_url('/zonatech-dashboard/');
             $delay_ms = self::REDIRECT_DELAY_MS;
@@ -204,7 +199,7 @@ class ZonaTech_Shortcodes {
     }
     
     public function render_dashboard() {
-        // Check login - show login required if not logged in
+        // Check login - show login required if not logged in (no auto-redirect)
         if (!$this->check_login()) {
             return $this->render_login_required('dashboard');
         }
@@ -240,25 +235,39 @@ class ZonaTech_Shortcodes {
         return ob_get_clean();
     }
     
-    public function render_past_questions() {
-        // Check login - show login required if not logged in
-        if (!$this->check_login()) {
-            return $this->render_login_required('past-questions');
-        }
-        
-        // Get exam types with error handling
+    /**
+     * Get exam types with fallback
+     */
+    private function get_exam_types_safe() {
         try {
             $exam_types = ZonaTech_Past_Questions::get_exam_types();
+            if (!is_array($exam_types) || empty($exam_types)) {
+                return self::get_fallback_exam_types();
+            }
+            return $exam_types;
         } catch (Exception $e) {
-            error_log('ZonaTech Past Questions Error: ' . $e->getMessage());
-            $exam_types = self::get_fallback_exam_types();
+            error_log('ZonaTech get_exam_types Error: ' . $e->getMessage());
+            return self::get_fallback_exam_types();
+        }
+    }
+    
+    /**
+     * Render Past Questions page
+     * This should ALWAYS work for logged-in users - no redirect to dashboard
+     */
+    public function render_past_questions() {
+        // If user is logged in, show past questions content directly
+        if ($this->check_login()) {
+            $exam_types = $this->get_exam_types_safe();
+            $is_guest = false;
+            
+            ob_start();
+            include ZONATECH_PLUGIN_DIR . 'templates/past-questions.php';
+            return ob_get_clean();
         }
         
-        $is_guest = false;
-        
-        ob_start();
-        include ZONATECH_PLUGIN_DIR . 'templates/past-questions.php';
-        return ob_get_clean();
+        // Not logged in - show login required (no auto-redirect)
+        return $this->render_login_required('past-questions');
     }
     
     public function render_nin_service() {
@@ -307,12 +316,8 @@ class ZonaTech_Shortcodes {
     }
     
     public function render_homepage() {
-        // Get exam types with error handling
-        try {
-            $exam_types = ZonaTech_Past_Questions::get_exam_types();
-        } catch (Exception $e) {
-            $exam_types = self::get_fallback_exam_types();
-        }
+        // Get exam types using safe helper
+        $exam_types = $this->get_exam_types_safe();
         
         // Get card types with error handling
         try {
