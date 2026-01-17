@@ -1,10 +1,12 @@
 /**
  * ZonaTech NG - PWA JavaScript
+ * Rebuilt from scratch to fix install button issues
  */
 
 (function($) {
     'use strict';
     
+    // Wait for DOM ready
     $(document).ready(function() {
         ZonaTechPWA.init();
     });
@@ -18,13 +20,22 @@
         isSafari: false,
         isEdge: false,
         isStandalone: false,
+        initialized: false,
         
         init: function() {
+            // Prevent double initialization
+            if (this.initialized) return;
+            this.initialized = true;
+            
+            console.log('ZonaTechPWA: Initializing...');
+            
             this.detectBrowser();
             this.registerServiceWorker();
             this.handleInstallPrompt();
             this.initPromptUI();
             this.checkStandalone();
+            
+            console.log('ZonaTechPWA: Initialized successfully');
         },
         
         // Detect browser and platform
@@ -39,6 +50,8 @@
             this.isEdge = /edge|edg/.test(ua);
             this.isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
                                window.navigator.standalone === true;
+            
+            console.log('ZonaTechPWA: Browser detection - iOS:', this.isIOS, 'Android:', this.isAndroid, 'Chrome:', this.isChrome);
         },
         
         // Check if already installed
@@ -47,6 +60,7 @@
                 // App is already installed, hide install prompts
                 $('#zonatech-pwa-prompt').hide();
                 $('#download-app-btn').html('<i class="fas fa-check-circle"></i> App Installed');
+                console.log('ZonaTechPWA: App already installed');
             }
         },
         
@@ -56,10 +70,10 @@
                 window.addEventListener('load', function() {
                     navigator.serviceWorker.register(zonatech_ajax.sw_url)
                         .then(function(registration) {
-                            console.log('ServiceWorker registered:', registration.scope);
+                            console.log('ZonaTechPWA: ServiceWorker registered:', registration.scope);
                         })
                         .catch(function(error) {
-                            console.log('ServiceWorker registration failed:', error);
+                            console.log('ZonaTechPWA: ServiceWorker registration failed:', error);
                         });
                 });
             }
@@ -76,6 +90,8 @@
                 // Store event for later use
                 self.deferredPrompt = e;
                 
+                console.log('ZonaTechPWA: Install prompt captured');
+                
                 // Update download button to show it's available
                 $('#download-app-btn').html('<i class="fas fa-download"></i> Install App Now').removeClass('disabled');
                 
@@ -87,6 +103,7 @@
             
             // Track when app is installed
             window.addEventListener('appinstalled', function() {
+                console.log('ZonaTechPWA: App installed');
                 self.deferredPrompt = null;
                 self.hideInstallPrompt();
                 $('#download-app-btn').html('<i class="fas fa-check-circle"></i> App Installed');
@@ -96,23 +113,37 @@
             });
         },
         
-        // Initialize prompt UI
+        // Initialize prompt UI - using event delegation to ensure it works
         initPromptUI: function() {
             const self = this;
             
-            // Install button
-            $('#zonatech-pwa-install').on('click', function() {
-                self.installApp();
-            });
+            // Remove any existing handlers first to prevent duplicates
+            $(document).off('click.zonatechpwa');
             
-            // Download button in Download App section
-            $('#download-app-btn').on('click', function(e) {
+            // Install button in popup prompt - using event delegation
+            $(document).on('click.zonatechpwa', '#zonatech-pwa-install', function(e) {
                 e.preventDefault();
-                self.triggerInstall();
+                e.stopPropagation();
+                console.log('ZonaTechPWA: Install button clicked (popup)');
+                self.installApp();
+                return false;
             });
             
-            // Dismiss button
-            $('#zonatech-pwa-dismiss').on('click', function() {
+            // Download button in Download App section - using event delegation
+            // This is the main "Install App Now" button on the homepage
+            $(document).on('click.zonatechpwa', '#download-app-btn', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('ZonaTechPWA: Download app button clicked');
+                self.triggerInstall();
+                return false;
+            });
+            
+            // Dismiss button - using event delegation
+            $(document).on('click.zonatechpwa', '#zonatech-pwa-dismiss', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('ZonaTechPWA: Dismiss clicked');
                 self.hideInstallPrompt();
                 localStorage.setItem('zonatech_pwa_dismissed', 'true');
                 
@@ -120,7 +151,10 @@
                 setTimeout(function() {
                     localStorage.removeItem('zonatech_pwa_dismissed');
                 }, 7 * 24 * 60 * 60 * 1000);
+                return false;
             });
+            
+            console.log('ZonaTechPWA: UI event handlers attached');
         },
         
         // Show install prompt
@@ -135,6 +169,8 @@
         
         // Trigger install based on browser
         triggerInstall: function() {
+            console.log('ZonaTechPWA: triggerInstall called, deferredPrompt:', !!this.deferredPrompt);
+            
             if (this.deferredPrompt) {
                 this.installApp();
             } else if (this.isIOS) {
@@ -156,8 +192,12 @@
         installApp: function() {
             const self = this;
             
+            console.log('ZonaTechPWA: installApp called');
+            
             if (!this.deferredPrompt) {
-                this.triggerInstall();
+                console.log('ZonaTechPWA: No deferred prompt, showing instructions');
+                // Don't recursively call triggerInstall - show generic instructions directly
+                this.showGenericInstructions();
                 return;
             }
             
@@ -167,12 +207,12 @@
             // Wait for user response
             this.deferredPrompt.userChoice.then(function(choiceResult) {
                 if (choiceResult.outcome === 'accepted') {
-                    console.log('User accepted install');
+                    console.log('ZonaTechPWA: User accepted install');
                     if (typeof ZonaTechNotify !== 'undefined') {
                         ZonaTechNotify.show('Installing app...', 'success');
                     }
                 } else {
-                    console.log('User dismissed install');
+                    console.log('ZonaTechPWA: User dismissed install');
                 }
                 self.deferredPrompt = null;
                 self.hideInstallPrompt();
