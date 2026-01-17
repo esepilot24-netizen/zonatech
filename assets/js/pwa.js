@@ -121,9 +121,8 @@
             $(document).off('click.zonatechpwa');
             
             // Install button in popup prompt - using event delegation
-            $(document).on('click.zonatechpwa', '#zonatech-pwa-install', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
+            // return false in jQuery handlers does preventDefault() and stopPropagation()
+            $(document).on('click.zonatechpwa', '#zonatech-pwa-install', function() {
                 console.log('ZonaTechPWA: Install button clicked (popup)');
                 self.installApp();
                 return false;
@@ -131,18 +130,14 @@
             
             // Download button in Download App section - using event delegation
             // This is the main "Install App Now" button on the homepage
-            $(document).on('click.zonatechpwa', '#download-app-btn', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
+            $(document).on('click.zonatechpwa', '#download-app-btn', function() {
                 console.log('ZonaTechPWA: Download app button clicked');
                 self.triggerInstall();
                 return false;
             });
             
             // Dismiss button - using event delegation
-            $(document).on('click.zonatechpwa', '#zonatech-pwa-dismiss', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
+            $(document).on('click.zonatechpwa', '#zonatech-pwa-dismiss', function() {
                 console.log('ZonaTechPWA: Dismiss clicked');
                 self.hideInstallPrompt();
                 localStorage.setItem('zonatech_pwa_dismissed', 'true');
