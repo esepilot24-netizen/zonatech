@@ -308,65 +308,86 @@ class ZonaTech_User_Auth {
     }
     
     public function handle_register() {
+        // Only clear output buffers for AJAX requests if they have content
+        if (defined('DOING_AJAX') && DOING_AJAX) {
+            while (ob_get_level() > 0 && ob_get_length() > 0) {
+                ob_end_clean();
+            }
+        }
+        
         // Set JSON content type early to ensure proper response handling
         if (!headers_sent()) {
             header('Content-Type: application/json; charset=UTF-8');
+            header('Cache-Control: no-cache, no-store, must-revalidate');
         }
         
-        // Verify nonce using WordPress recommended function
-        if (!check_ajax_referer('zonatech_nonce', 'nonce', false)) {
-            wp_send_json_error(array('message' => 'Security check failed. Please refresh the page.'));
-            wp_die();
+        // Verify nonce with proper WordPress slashing handling
+        $nonce_valid = false;
+        if (isset($_POST['nonce'])) {
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+            $nonce_value = sanitize_key(wp_unslash($_POST['nonce']));
+            $nonce_valid = wp_verify_nonce($nonce_value, 'zonatech_nonce');
         }
         
-        // Get and sanitize input
-        $first_name = isset($_POST['first_name']) ? sanitize_text_field(trim($_POST['first_name'])) : '';
-        $last_name = isset($_POST['last_name']) ? sanitize_text_field(trim($_POST['last_name'])) : '';
-        $email = isset($_POST['email']) ? sanitize_email(trim($_POST['email'])) : '';
-        $phone = isset($_POST['phone']) ? sanitize_text_field(trim($_POST['phone'])) : '';
-        $password = isset($_POST['password']) ? $_POST['password'] : '';
-        $confirm_password = isset($_POST['confirm_password']) ? $_POST['confirm_password'] : '';
+        if (!$nonce_valid) {
+            echo wp_json_encode(array('success' => false, 'data' => array('message' => 'Security check failed. Please refresh the page and try again.')));
+            exit;
+        }
+        
+        // Get and sanitize input with proper WordPress slashing handling
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+        $first_name = isset($_POST['first_name']) ? sanitize_text_field(wp_unslash($_POST['first_name'])) : '';
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+        $last_name = isset($_POST['last_name']) ? sanitize_text_field(wp_unslash($_POST['last_name'])) : '';
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+        $email = isset($_POST['email']) ? sanitize_email(wp_unslash($_POST['email'])) : '';
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+        $phone = isset($_POST['phone']) ? sanitize_text_field(wp_unslash($_POST['phone'])) : '';
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+        $password = isset($_POST['password']) ? wp_unslash($_POST['password']) : '';
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+        $confirm_password = isset($_POST['confirm_password']) ? wp_unslash($_POST['confirm_password']) : '';
         
         // Validation - check all required fields first
         if (empty($first_name)) {
-            wp_send_json_error(array('message' => 'First name is required.'));
-            wp_die();
+            echo wp_json_encode(array('success' => false, 'data' => array('message' => 'First name is required.')));
+            exit;
         }
         
         if (empty($last_name)) {
-            wp_send_json_error(array('message' => 'Last name is required.'));
-            wp_die();
+            echo wp_json_encode(array('success' => false, 'data' => array('message' => 'Last name is required.')));
+            exit;
         }
         
         if (empty($email)) {
-            wp_send_json_error(array('message' => 'Email address is required.'));
-            wp_die();
+            echo wp_json_encode(array('success' => false, 'data' => array('message' => 'Email address is required.')));
+            exit;
         }
         
         if (!is_email($email)) {
-            wp_send_json_error(array('message' => 'Please enter a valid email address.'));
-            wp_die();
+            echo wp_json_encode(array('success' => false, 'data' => array('message' => 'Please enter a valid email address.')));
+            exit;
         }
         
         if (empty($password)) {
-            wp_send_json_error(array('message' => 'Password is required.'));
-            wp_die();
+            echo wp_json_encode(array('success' => false, 'data' => array('message' => 'Password is required.')));
+            exit;
         }
         
         if (strlen($password) < 6) {
-            wp_send_json_error(array('message' => 'Password must be at least 6 characters.'));
-            wp_die();
+            echo wp_json_encode(array('success' => false, 'data' => array('message' => 'Password must be at least 6 characters.')));
+            exit;
         }
         
         if ($password !== $confirm_password) {
-            wp_send_json_error(array('message' => 'Passwords do not match.'));
-            wp_die();
+            echo wp_json_encode(array('success' => false, 'data' => array('message' => 'Passwords do not match.')));
+            exit;
         }
         
         // Check if email already exists
         if (email_exists($email)) {
-            wp_send_json_error(array('message' => 'An account with this email already exists. Please login instead.'));
-            wp_die();
+            echo wp_json_encode(array('success' => false, 'data' => array('message' => 'An account with this email already exists. Please login instead.')));
+            exit;
         }
         
         // Generate unique username from first+last name
@@ -410,35 +431,41 @@ class ZonaTech_User_Auth {
         if (is_wp_error($user_id)) {
             $error_message = $user_id->get_error_message();
             error_log('ZonaTech Registration Error: ' . $error_message);
-            wp_send_json_error(array('message' => 'Registration failed: ' . $error_message));
-            wp_die();
+            echo wp_json_encode(array('success' => false, 'data' => array('message' => 'Registration failed: ' . $error_message)));
+            exit;
         }
         
-        // Save additional user meta
+        // Save additional user meta (check return values, fail silently)
         if (!empty($phone)) {
-            update_user_meta($user_id, 'phone', $phone);
-        }
-        update_user_meta($user_id, 'zonatech_registered', current_time('mysql'));
-        update_user_meta($user_id, 'zonatech_email_verified', 1);
-        
-        // Log activity (fail silently)
-        try {
-            if (class_exists('ZonaTech_Activity_Log') && method_exists('ZonaTech_Activity_Log', 'log')) {
-                ZonaTech_Activity_Log::log($user_id, 'registration', 'Account created');
+            if (!update_user_meta($user_id, 'phone', $phone)) {
+                error_log('ZonaTech: Failed to save phone for user ' . $user_id);
             }
-        } catch (Exception $e) {
-            // Ignore activity log errors
+        }
+        if (!update_user_meta($user_id, 'zonatech_registered', current_time('mysql'))) {
+            error_log('ZonaTech: Failed to save registration time for user ' . $user_id);
+        }
+        if (!update_user_meta($user_id, 'zonatech_email_verified', 1)) {
+            error_log('ZonaTech: Failed to save email_verified flag for user ' . $user_id);
         }
         
-        // Schedule welcome email (non-blocking) - run in background
-        wp_schedule_single_event(time(), 'zonatech_send_welcome_email', array($email, $first_name));
+        // Log activity (check if class/method exists, fail silently)
+        if (class_exists('ZonaTech_Activity_Log') && method_exists('ZonaTech_Activity_Log', 'log')) {
+            // Call with error suppression since it might have issues
+            @ZonaTech_Activity_Log::log($user_id, 'registration', 'Account created');
+        }
         
-        // Return success immediately
-        wp_send_json_success(array(
-            'message' => 'Account created successfully! Redirecting to login...',
-            'redirect' => home_url('/zonatech-login/')
+        // Send welcome email (suppress errors - don't block registration)
+        @$this->send_approval_email($email, $first_name);
+        
+        // Return success immediately using direct echo to ensure it's sent
+        echo wp_json_encode(array(
+            'success' => true, 
+            'data' => array(
+                'message' => 'Account created successfully! Redirecting to login...',
+                'redirect' => home_url('/zonatech-login/')
+            )
         ));
-        wp_die();
+        exit;
     }
     
     public function handle_verify_email() {
